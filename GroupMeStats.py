@@ -286,7 +286,8 @@ def determine_user_statistics(msgs, group_ids, msg_type, users):
         'likes_received': 0, 
         'likes_given': 0, 
         'self_likes': 0, 
-        'words_sent': 0}) for element in users)
+        'words_sent': 0,
+        'images_sent': 0}) for element in users)
     if msg_type.lower() == 'group':
         print("Analyzing group messages")
         for group in group_ids:
@@ -303,7 +304,7 @@ def determine_user_statistics(msgs, group_ids, msg_type, users):
 
 def process_message_stats(stats, msg):
     if (msg['sender_id']) not in stats.keys():
-        stats[msg['sender_id']] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'self_likes': 0, 'words_sent': 0}
+        stats[msg['sender_id']] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'self_likes': 0, 'words_sent': 0, 'images_sent': 0}
     if not bool(stats[msg['sender_id']]['name'] and stats[msg['sender_id']]['name'].strip()):
         stats[msg['sender_id']]['name'] = msg['name']
     stats[msg['sender_id']]['messages_sent'] += 1
@@ -311,13 +312,17 @@ def process_message_stats(stats, msg):
     if len(msg['favorited_by']) > 0:
         for usr in msg['favorited_by']:
             if usr not in stats.keys():
-                stats[usr] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'self_likes': 0, 'words_sent': 0}
+                stats[usr] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'self_likes': 0, 'words_sent': 0, 'images_sent': 0}
             stats[usr]['likes_given'] += 1
     if msg['sender_id'] in msg['favorited_by']:
         stats[msg['sender_id']]['self_likes'] += 1
     if msg['text'] is not None:
         msg['text'].split(' ')
         stats[msg['sender_id']]['words_sent'] += len(msg['text'].split(' '))
+    if msg['attachments']:
+        for attachment in msg['attachments']:
+            if attachment['type'] == 'image':
+                stats[msg['sender_id']]['images_sent'] += 1
 
 def write_to_csv(stats):
     with open('groupme_stats.csv', 'w', encoding='utf-8-sig', newline = '') as csv_file:
