@@ -20,7 +20,7 @@ def main():
     total_stats = {}
     if custom_args.messages_direct:
         retrieved_chats = get_chats(users, custom_args)
-        chats, chat_ids = retrieved_chats[0], retrieved_chats[1]
+        chat_ids = retrieved_chats[1]
         if custom_args.id_select is not -1:
             if custom_args.id_select <= len(chat_ids):
                 if not custom_args.all_users:
@@ -46,7 +46,7 @@ def main():
             total_stats.update(group_stats)
     if custom_args.messages_group:
         retrieved_groups = get_groups(users, custom_args)
-        groups, group_ids = retrieved_groups[0], retrieved_groups[1]
+        group_ids = retrieved_groups[1]
         if custom_args.id_select is not -1:
             if custom_args.id_select <= len(group_ids):
                 if not custom_args.all_users:
@@ -75,8 +75,12 @@ def main():
             group_stats = determine_user_statistics(retrieved_group_messages, group_ids, 'group', users)
             total_stats.update(group_stats)
     if not custom_args.ids_only:
-        write_to_csv(total_stats)
-        print("Calculating and writing stats " + calc_execution_time(start_time))
+        try:
+            write_to_csv(total_stats)
+            print("Calculating and writing stats " + calc_execution_time(start_time))
+        except PermissionError:
+            print("\nPlease close the file \'groupme_stats.cv\'")
+            print("Unable to write to file.\n")
 
 def setup_argparser(parser):
     parser.add_argument('--t', '--token',
@@ -174,7 +178,8 @@ def retrieve_group_messages(group_ids):
     for group in group_ids:
         print("Analyzing Group Message Thread with ID: " + group)
         messages = []
-        messages.append(get_latest_message_from_group(group))
+        r = requests.get("https://api.groupme.com/v3/groups/" + str(group) + "/messages?token=" + TOKEN + "&limit=1")
+        messages.append(r.json()['response']['messages'][0])
         message_id = messages[0]['id']
         while True:
             r = requests.get("https://api.groupme.com/v3/groups/" + str(group) + "/messages?token=" + TOKEN + "&before_id=" + str(message_id) + "&limit=100")
@@ -188,16 +193,13 @@ def retrieve_group_messages(group_ids):
         print("")
     return group_analysis_results
 
-def get_latest_message_from_group(g_id):
-    r = requests.get("https://api.groupme.com/v3/groups/" + str(g_id) + "/messages?token=" + TOKEN + "&limit=1")
-    return r.json()['response']['messages'][0]
-
 def retrieve_chat_messages(chat_ids):
     dm_analysis_results = {}
     for dm in chat_ids:
         print("Analyzing Direct Message Thread with ID: " + dm)
         messages = []
-        messages.append(get_latest_message_from_chat(dm))
+        r = requests.get("https://api.groupme.com/v3/direct_messages?token=" + TOKEN + "&other_user_id=" + str(dm))
+        messages.append(r.json()['response']['direct_messages'][0])
         message_id = messages[0]['id']
         while True:
             r = requests.get("https://api.groupme.com/v3/direct_messages?token=" + TOKEN + "&other_user_id=" + str(dm) + "&before_id=" + str(message_id))
@@ -212,10 +214,6 @@ def retrieve_chat_messages(chat_ids):
         dm_analysis_results[dm] = messages
         print("")
     return dm_analysis_results
-        
-def get_latest_message_from_chat(c_id):
-    r = requests.get("https://api.groupme.com/v3/direct_messages?token=" + TOKEN + "&other_user_id=" + str(c_id))
-    return r.json()['response']['direct_messages'][0]
 
 def save_messages(results, msg_type, encoding_type):
     if encoding_type.lower() == 'json':
