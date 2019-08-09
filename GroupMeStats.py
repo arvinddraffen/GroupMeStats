@@ -7,7 +7,9 @@ import requests
 import sys
 import time
 
+
 TOKEN = ""
+
 
 def main():
     parser = argparse.ArgumentParser(description='Select GroupMe message type(s) for program to use.')
@@ -19,7 +21,7 @@ def main():
     start_time = time.time()
     total_stats = {}
     if custom_args.messages_direct:
-        retrieved_chats = get_chats(users, custom_args)
+        retrieved_chats = get_chats(users)
         chat_ids = retrieved_chats[1]
         if custom_args.id_select is not -1:
             if custom_args.id_select <= len(chat_ids):
@@ -45,15 +47,19 @@ def main():
             group_stats = determine_user_statistics(retrieved_direct_messages, chat_ids, 'direct', users)
             total_stats.update(group_stats)
     if custom_args.messages_group:
-        retrieved_groups = get_groups(users, custom_args)
+        retrieved_groups = get_groups(users)
         group_ids = retrieved_groups[1]
         if custom_args.id_select is not -1:
-            if custom_args.id_select <= len(group_ids):
-                if not custom_args.all_users:
-                    users.clear()
-                new_group = []
-                new_group.append(group_ids[custom_args.id_select])
-                group_ids = new_group
+            try:
+                if custom_args.id_select <= len(group_ids):
+                    if not custom_args.all_users:
+                        users.clear()
+                    new_group = []
+                    new_group.append(group_ids[custom_args.id_select])
+                    group_ids = new_group
+            except IndexError:
+                print("You entered an invalid group number.\nExiting...\n")
+                sys.exit()
         if not custom_args.ids_only:
             if custom_args.load:
                 retrieved_group_messages = load_messages('group', custom_args.encoding_type)
@@ -81,6 +87,7 @@ def main():
         except PermissionError:
             print("\nPlease close the file \'groupme_stats.cv\'")
             print("Unable to write to file.\n")
+
 
 def setup_argparser(parser):
     parser.add_argument('--t', '--token',
@@ -126,6 +133,7 @@ def setup_argparser(parser):
                                 Valid types are \'json\' or \'pkl\'.''')
     return parser.parse_args()
 
+
 def set_token(custom_args):
     global TOKEN
     if custom_args.token is not None:
@@ -134,33 +142,46 @@ def set_token(custom_args):
     else:
         try:
             with open('token.txt', 'r') as token_file:
-                TOKEN = token_file.readline()
+                TOKEN = token_file.readline().strip('\n')
                 return True
         except FileNotFoundError:
             return False
         return False
 
-def get_groups(users, custom_args):
-    r = requests.get("https://api.groupme.com/v3/groups?token=" + TOKEN)
+
+def get_groups(users):
+    #Active Groups
+    r = requests.get("https://api.groupme.com/v3/groups?token=" + TOKEN + "&per_page=500") # max val allowed per API is 500 for groups
     data = r.json()
+    print("Active Groups")
     print('{0: <2} {1: <40} {2: <10}'.format('#', 'Group Name', 'Group Id'))
     g_ids = []
     usr = []
     i = 0
     for element in data['response']:
-        #print(element['group_id'])
         print('{0: <2} {1: <40} {2: <10}'.format(i, element['name'], element['group_id']))
         g_ids.append(element['group_id'])
         for member in element['members']:
             if member['user_id'] not in users:
                 usr.append(member['user_id'])
         i += 1
-    print("")
+
+    # Former Groups
+    r = requests.get("https://api.groupme.com/v3/groups/former?token=" + TOKEN + "&per_page=500")
+    data = r.json()
+    print("\nFormer Groups (you must rejoin these groups to analyze messages)")
+    print('{0: <2} {1: <40} {2: <10}'.format('#', 'Group Name', 'Group Id'))
+    for element in data['response']:
+        # These groups are not added to g_ids because their messages cannot be later retrieved as former groups
+        print('{0: <2} {1: <40} {2: <10}'.format(i, element['name'], element['group_id']))
+        i += 1
+    print("\n")
     users.update(usr)
     return data, g_ids
 
-def get_chats(users, custom_args):
-    r = requests.get("https://api.groupme.com/v3/chats?token=" + TOKEN)
+
+def get_chats(users):
+    r = requests.get("https://api.groupme.com/v3/chats?token=" + TOKEN + "&per_page=100") # max val allowed per API is 100 for chats
     data = r.json()
     print('{0: <2} {1: <40} {2: <10}'.format('#', 'Person Name', 'Chat Id'))
     c_ids = []
@@ -169,9 +190,10 @@ def get_chats(users, custom_args):
         print('{0: <2} {1: <40} {2: <10}'.format(i, element['other_user']['name'], element['other_user']['id']))
         c_ids.append(element['other_user']['id'])
         i += 1
-    print("")
+    print("\n")
     users.update(c_ids)
     return data, c_ids
+
 
 def retrieve_group_messages(group_ids):
     group_analysis_results = {}
@@ -193,6 +215,7 @@ def retrieve_group_messages(group_ids):
         print("")
     return group_analysis_results
 
+    
 def retrieve_chat_messages(chat_ids):
     dm_analysis_results = {}
     for dm in chat_ids:
@@ -214,6 +237,7 @@ def retrieve_chat_messages(chat_ids):
         dm_analysis_results[dm] = messages
         print("")
     return dm_analysis_results
+
 
 def save_messages(results, msg_type, encoding_type):
     if encoding_type.lower() == 'json':
@@ -237,7 +261,8 @@ def save_messages(results, msg_type, encoding_type):
     else:
         print("Unable to save. Invalid encoding type given.")
         return
-    
+  
+        
 def load_messages(msg_type, encoding_type):
     if encoding_type.lower() == 'json':
         if msg_type.lower() == 'group':
@@ -277,6 +302,7 @@ def load_messages(msg_type, encoding_type):
         print("Unable to load. Invalid encoding type given.")
         return
 
+
 def determine_user_statistics(msgs, group_ids, msg_type, users):
     stats = dict((element, {
         'name': '',
@@ -300,6 +326,7 @@ def determine_user_statistics(msgs, group_ids, msg_type, users):
         print("Provided message type not recognized")
     return stats
 
+
 def process_message_stats(stats, msg):
     if (msg['sender_id']) not in stats.keys():
         stats[msg['sender_id']] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'self_likes': 0, 'words_sent': 0, 'images_sent': 0}
@@ -322,11 +349,13 @@ def process_message_stats(stats, msg):
             if attachment['type'] == 'image':
                 stats[msg['sender_id']]['images_sent'] += 1
 
+
 def write_to_csv(stats):
     with open('groupme_stats.csv', 'w', encoding='utf-8-sig', newline = '') as csv_file:
         writer = csv.writer(csv_file)
         for key, value in stats.items():
             writer.writerow([key, value])
+
 
 def calc_execution_time(start_time):
     execution_time = time.time() - start_time
@@ -334,6 +363,7 @@ def calc_execution_time(start_time):
         return ("took {0:.5f} minutes to execute".format((time.time() - start_time)/60))
     else:
         return ("took {0:.5f} seconds to execute".format((time.time() - start_time)))
+
 
 if __name__ == '__main__':
     start_time = time.time()
