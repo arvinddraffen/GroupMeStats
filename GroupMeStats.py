@@ -22,7 +22,7 @@ def main():
     total_stats = {}
     if custom_args.messages_direct:
         retrieved_chats = get_chats(users)
-        chat_ids = retrieved_chats[1]
+        chat_ids, chat_info = retrieved_chats[1], retrieved_chats[2]
         if custom_args.id_select is not -1:
             if custom_args.id_select <= len(chat_ids):
                 if not custom_args.all_users:
@@ -39,16 +39,16 @@ def main():
                         selected_direct_messages[key] = retrieved_direct_messages[key]
                 retrieved_direct_messages = selected_direct_messages
             else:
-                retrieved_direct_messages = retrieve_chat_messages(chat_ids)
+                retrieved_direct_messages = retrieve_chat_messages(chat_ids, chat_info)
                 save_messages(retrieved_direct_messages, 'direct', custom_args.encoding_type)
             print("Retrieving messages " + calc_execution_time(start_time))
             start_time = time.time()
-            group_stats = {}
-            group_stats = determine_user_statistics(retrieved_direct_messages, chat_ids, 'direct', users)
-            total_stats.update(group_stats)
+            chat_stats = {}
+            chat_stats = determine_user_statistics(retrieved_direct_messages, chat_ids, 'direct', users)
+            total_stats.update(chat_stats)
     if custom_args.messages_group:
         retrieved_groups = get_groups(users)
-        group_ids = retrieved_groups[1]
+        group_ids, group_info = retrieved_groups[1], retrieved_groups[2]
         if custom_args.id_select is not -1:
             try:
                 if custom_args.id_select <= len(group_ids):
@@ -73,7 +73,7 @@ def main():
                     print("Unable to analyze data due to above error.\n")
                     return
             else:
-                retrieved_group_messages = retrieve_group_messages(group_ids)
+                retrieved_group_messages = retrieve_group_messages(group_ids, group_info)
                 save_messages(retrieved_group_messages, 'group', custom_args.encoding_type)
             print("Retrieving messages " + calc_execution_time(start_time))
             start_time = time.time()
@@ -90,6 +90,15 @@ def main():
 
 
 def setup_argparser(parser):
+    """ 
+    Add the valid/accepted command-line arguments to the Argument Parser.
+
+    Args:
+        parser: ArgumentParser used for command line arguments
+    
+    Returns:
+        result of parser.parse_args() such that provided arguments at runtime can be parsed
+    """
     parser.add_argument('--t', '--token',
                         type=str,
                         action='store',
@@ -135,6 +144,18 @@ def setup_argparser(parser):
 
 
 def set_token(custom_args):
+    """
+    Assign the TOKEN variable to its value, provided via command line or file.
+
+    Args:
+        custom_args: parsed provided user-provided runtime command line arguments, used to check whether TOKEN was provided via command-line option
+    
+    Returns:
+        True if TOKEN is provided via command-line or retrievable from file. False otherwise.
+    
+    Raises:
+        FileNotFoundError if TOKEN if 'token.txt' file is not available in expected location, after checking for TOKEN via command line option
+    """
     global TOKEN
     if custom_args.token is not None:
         TOKEN = custom_args.token
@@ -150,17 +171,30 @@ def set_token(custom_args):
 
 
 def get_groups(users):
+    """
+    Retrieve active and former groups for the GroupMe profile.
+
+    Args:
+        users: set containing all user_ids encountered through analysis of groups and/or chats
+    
+    Returns:
+        data: full JSON data retrieved from API request of groups
+        g_ids: list of all group ids retrieved from API request of groups
+        group_info: dictionary with key of Group ID and value a a list of Group Name and number of messages sent in group
+    """
     #Active Groups
     r = requests.get("https://api.groupme.com/v3/groups?token=" + TOKEN + "&per_page=500") # max val allowed per API is 500 for groups
     data = r.json()
     print("Active Groups")
     print('{0: <2} {1: <40} {2: <10}'.format('#', 'Group Name', 'Group Id'))
     g_ids = []
+    group_info = {}
     usr = []
     i = 0
     for element in data['response']:
         print('{0: <2} {1: <40} {2: <10}'.format(i, element['name'], element['group_id']))
         g_ids.append(element['group_id'])
+        group_info[element['group_id']] = [element['name'], element['messages']['count']]
         for member in element['members']:
             if member['user_id'] not in users:
                 usr.append(member['user_id'])
@@ -177,28 +211,50 @@ def get_groups(users):
         i += 1
     print("\n")
     users.update(usr)
-    return data, g_ids
+    return data, g_ids, group_info
 
 
 def get_chats(users):
+    """
+    Retrieve active chats for the GroupMe profile.
+
+    Args:
+        users: set containing all user_ids encountered through analysis of chats and/or groups
+
+    Returns:
+        data: full JSON data retrieved from API request of chats
+        c_ids: list of all chat ids retrieved from API request of chats
+        chat_info: dictionary with key of Chat ID and value a a list of Other User Name and number of messages sent in chat
+    """
     r = requests.get("https://api.groupme.com/v3/chats?token=" + TOKEN + "&per_page=100") # max val allowed per API is 100 for chats
     data = r.json()
     print('{0: <2} {1: <40} {2: <10}'.format('#', 'Person Name', 'Chat Id'))
     c_ids = []
+    chat_info = {}
     i = 0
     for element in data['response']:
         print('{0: <2} {1: <40} {2: <10}'.format(i, element['other_user']['name'], element['other_user']['id']))
         c_ids.append(element['other_user']['id'])
+        chat_info[element['other_user']['id']] = [element['other_user']['name'], element['messages_count']]
         i += 1
     print("\n")
     users.update(c_ids)
-    return data, c_ids
+    return data, c_ids, chat_info
 
 
-def retrieve_group_messages(group_ids):
+def retrieve_group_messages(group_ids, group_info):
+    """
+    Retrieve all messages for all groups in group_ids, retrieves for each group sequentially.
+
+    Args:
+        group_ids: list of group ids returned from get_groups()
+
+    Returns:
+        group_analysis_results: dictionary with each group_id in group_ids as keys and all messages for each group (in the form of a list) as corresponding values
+    """
     group_analysis_results = {}
     for group in group_ids:
-        print("Analyzing Group Message Thread with ID: " + group)
+        print("Analyzing Group Message Thread: " + group_info[group][0])
         messages = []
         r = requests.get("https://api.groupme.com/v3/groups/" + str(group) + "/messages?token=" + TOKEN + "&limit=1")
         messages.append(r.json()['response']['messages'][0])
@@ -210,16 +266,25 @@ def retrieve_group_messages(group_ids):
                 message_id = messages[-1]['id']         # oldest message received in last 100 messages returned from API request
             except ValueError:
                 break
-            print("\rRetrieved " + str(len(messages)) + " messages.", end='')
+            print("\rRetrieved " + str(len(messages)) + "/" + str(group_info[group][1]) + " messages.", end='')
         group_analysis_results[group] = messages
         print("")
     return group_analysis_results
 
     
-def retrieve_chat_messages(chat_ids):
+def retrieve_chat_messages(chat_ids, chat_info):
+    """
+    Retrieve all messages for all chats in chat_ids, retrieves for each group sequentially.
+
+    Args:
+        chat_ids: list of chat ids returned from get_chats()
+    
+    Returns:
+        dm_analysis_results: dictionary with each chat_id (dm) in chat_ids as keys and all messages for each chat (in the form of a list) as corresponding values
+    """
     dm_analysis_results = {}
     for dm in chat_ids:
-        print("Analyzing Direct Message Thread with ID: " + dm)
+        print("Analyzing Direct Message Thread With User: " + chat_info[dm][0])
         messages = []
         r = requests.get("https://api.groupme.com/v3/direct_messages?token=" + TOKEN + "&other_user_id=" + str(dm))
         messages.append(r.json()['response']['direct_messages'][0])
@@ -233,13 +298,21 @@ def retrieve_chat_messages(chat_ids):
                 message_id = messages[-1]['id']
             except ValueError:
                 break
-            print("\rRetrieved " + str(len(messages)) + " messages.", end='')
+            print("\rRetrieved " + str(len(messages)) + "/" + str(chat_info[dm][1]) + " messages.", end='')
         dm_analysis_results[dm] = messages
         print("")
     return dm_analysis_results
 
 
 def save_messages(results, msg_type, encoding_type):
+    """
+    Writes dictionary containing each group/chat and its messages to either a JSON or pkl file. 
+
+    Args:
+        results: dictionary with group ids as keys and messages as values (in the format of dictionary returned by retrieve_group_messages() and retrieve_chat_messages())
+        msg_type: either 'group' or 'direct' for groups and chats, respectively
+        encoding_type: either 'json' or 'pkl' for JSON or pickle, respectively. Encoding type to use specified by command line option
+    """
     if encoding_type.lower() == 'json':
         if msg_type.lower() == 'group':
             with open('group_messages.json', 'w', encoding='utf-8') as save_file:
@@ -264,17 +337,27 @@ def save_messages(results, msg_type, encoding_type):
   
         
 def load_messages(msg_type, encoding_type):
+    """
+    Loads and returns dictionary containing each group/chat and its messages from either a JSON or pkl file.
+
+    Args:
+        msg_type: either 'group' or 'direct' for groups and chats, respectively
+        encoding_type: either 'json' or 'pkl' for JSON or pickle, respectively. Encoding type to use specified by command line option
+    
+    Returns:
+        dictionary with group ids as keys and a list of messages as values if appropriate file exists. None is returned otherwise.
+    """
     if encoding_type.lower() == 'json':
         if msg_type.lower() == 'group':
             try:
-                with open('group_messages.json', 'rb') as save_file:
+                with open('group_messages.json', 'r') as save_file:
                     return json.load(save_file, encoding='utf-8')
             except FileNotFoundError:
                 print("File \'group_messages.json\' does not exist.")
                 return
         elif msg_type.lower() == 'direct':
             try:
-                with open('direct_messages.json', 'rb', encoding='utf-8') as save_file:
+                with open('direct_messages.json', 'r', encoding='utf-8') as save_file:
                     return json.load(save_file, encoding='utf-8')
             except FileNotFoundError:
                 print("File \'direct_messages.json\' does not exist.")
@@ -304,6 +387,18 @@ def load_messages(msg_type, encoding_type):
 
 
 def determine_user_statistics(msgs, group_ids, msg_type, users):
+    """
+    Calls process_message_stats() for every message in each group and returns the cumulative result as the dictionary stats
+
+    Args:
+        msgs: list of messages from selected group(s) or chat(s) from which to calculate volume stats
+        group_ids: list of group ids from which messages in msgs were retrieved
+        msg_type: parameter specifying whether type of 'msgs' is 'group' or 'direct'
+        users: users: set containing all user_ids encountered through analysis of chats and/or groups (provided not reset, otherwise empty)
+    
+    Returns:
+        stats: dictionary with key of user id and value of list contaning user's name and various volume stats
+    """
     stats = dict((element, {
         'name': '',
         'messages_sent': 0, 
@@ -328,6 +423,13 @@ def determine_user_statistics(msgs, group_ids, msg_type, users):
 
 
 def process_message_stats(stats, msg):
+    """
+    Updates volume statistics in stats dict for particular user(s) based on message data
+
+    Args:
+        stats: dictionary with key of user id and value of list contaning user's name and various volume stats
+        msg: JSON data for a particular GroupMe message to analyze
+    """
     if (msg['sender_id']) not in stats.keys():
         stats[msg['sender_id']] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'self_likes': 0, 'words_sent': 0, 'images_sent': 0}
     if not bool(stats[msg['sender_id']]['name'] and stats[msg['sender_id']]['name'].strip()):
@@ -351,6 +453,12 @@ def process_message_stats(stats, msg):
 
 
 def write_to_csv(stats):
+    """
+    Writes the calculated stats to the file 'groupme_stats.csv'.
+
+    Args:
+        stats: dictionary with key of user id and value of list contaning user's name and various volume stats
+    """
     with open('groupme_stats.csv', 'w', encoding='utf-8-sig', newline = '') as csv_file:
         writer = csv.writer(csv_file)
         for key, value in stats.items():
@@ -358,6 +466,15 @@ def write_to_csv(stats):
 
 
 def calc_execution_time(start_time):
+    """
+    Returns a formatted string reporting the duration of time from the provided start_time argument to when the function is entered.
+
+    Args:
+        start_time: a float representing a time of an event
+    
+    Returns:
+        a formatted string stating the duration between time at which the function was entered and start_time
+    """
     execution_time = time.time() - start_time
     if execution_time > 60:
         return ("took {0:.5f} minutes to execute".format((time.time() - start_time)/60))
