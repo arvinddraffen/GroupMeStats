@@ -3,6 +3,7 @@ import argparse
 import csv
 import json
 import pickle
+import re
 import requests
 import sys
 import time
@@ -20,6 +21,7 @@ def main():
     users = set()
     start_time = time.time()
     total_stats = {}
+    num_messages = 0
     if custom_args.messages_direct:
         retrieved_chats = get_chats(users)
         chat_ids, chat_info = retrieved_chats[1], retrieved_chats[2]
@@ -45,7 +47,8 @@ def main():
             start_time = time.time()
             chat_stats = {}
             chat_stats = determine_user_statistics(retrieved_direct_messages, chat_ids, 'direct', users)
-            total_stats.update(chat_stats)
+            total_stats.update(chat_stats[0])
+            num_messages += chat_stats[1]
     if custom_args.messages_group:
         retrieved_groups = get_groups(users)
         group_ids, group_info = retrieved_groups[1], retrieved_groups[2]
@@ -79,10 +82,11 @@ def main():
             start_time = time.time()
             group_stats = {}
             group_stats = determine_user_statistics(retrieved_group_messages, group_ids, 'group', users)
-            total_stats.update(group_stats)
+            total_stats.update(group_stats[0])
+            num_messages += group_stats[1]
     if not custom_args.ids_only:
         try:
-            write_to_csv(total_stats)
+            write_to_csv(total_stats, num_messages)
             print("Calculating and writing stats " + calc_execution_time(start_time))
         except PermissionError:
             print("\nPlease close the file \'groupme_stats.cv\'")
@@ -186,13 +190,13 @@ def get_groups(users):
     r = requests.get("https://api.groupme.com/v3/groups?token=" + TOKEN + "&per_page=500") # max val allowed per API is 500 for groups
     data = r.json()
     print("Active Groups")
-    print('{0: <2} {1: <40} {2: <10}'.format('#', 'Group Name', 'Group Id'))
+    print('{0: <2} {1: <40} {2: <10} {3: <12}'.format('#', 'Group Name', 'Group Id', 'Message Count'))
     g_ids = []
     group_info = {}
     usr = []
     i = 0
     for element in data['response']:
-        print('{0: <2} {1: <40} {2: <10}'.format(i, element['name'], element['group_id']))
+        print('{0: <2} {1: <40} {2: <10} {3: >12}'.format(i, process_name(element['name']), element['group_id'], element['messages']['count']))
         g_ids.append(element['group_id'])
         group_info[element['group_id']] = [element['name'], element['messages']['count']]
         for member in element['members']:
@@ -207,7 +211,7 @@ def get_groups(users):
     print('{0: <2} {1: <40} {2: <10}'.format('#', 'Group Name', 'Group Id'))
     for element in data['response']:
         # These groups are not added to g_ids because their messages cannot be later retrieved as former groups
-        print('{0: <2} {1: <40} {2: <10}'.format(i, element['name'], element['group_id']))
+        print('{0: <2} {1: <40} {2: <10}'.format(i, process_name(element['name']), element['group_id']))
         i += 1
     print("\n")
     users.update(usr)
@@ -228,18 +232,22 @@ def get_chats(users):
     """
     r = requests.get("https://api.groupme.com/v3/chats?token=" + TOKEN + "&per_page=100") # max val allowed per API is 100 for chats
     data = r.json()
-    print('{0: <2} {1: <40} {2: <10}'.format('#', 'Person Name', 'Chat Id'))
+    print('{0: <2} {1: <40} {2: <10} {3: <12}'.format('#', 'Person Name', 'Chat Id', 'Message Count'))
     c_ids = []
     chat_info = {}
     i = 0
     for element in data['response']:
-        print('{0: <2} {1: <40} {2: <10}'.format(i, element['other_user']['name'], element['other_user']['id']))
+        print('{0: <2} {1: <40} {2: <10} {3: >12}'.format(i, process_name(element['other_user']['name']), element['other_user']['id'], element['messages_count']))
         c_ids.append(element['other_user']['id'])
         chat_info[element['other_user']['id']] = [element['other_user']['name'], element['messages_count']]
         i += 1
     print("\n")
     users.update(c_ids)
     return data, c_ids, chat_info
+
+def process_name(name):
+    pattern = re.compile(r'([^\s\w]|_)+', re.UNICODE)
+    return pattern.sub('', name)
 
 
 def retrieve_group_messages(group_ids, group_info):
@@ -350,15 +358,15 @@ def load_messages(msg_type, encoding_type):
     if encoding_type.lower() == 'json':
         if msg_type.lower() == 'group':
             try:
-                with open('group_messages.json', 'r') as save_file:
-                    return json.load(save_file, encoding='utf-8')
+                with open('group_messages.json', 'r', encoding='utf-8') as save_file:
+                    return json.load(save_file)
             except FileNotFoundError:
                 print("File \'group_messages.json\' does not exist.")
                 return
         elif msg_type.lower() == 'direct':
             try:
                 with open('direct_messages.json', 'r', encoding='utf-8') as save_file:
-                    return json.load(save_file, encoding='utf-8')
+                    return json.load(save_file)
             except FileNotFoundError:
                 print("File \'direct_messages.json\' does not exist.")
                 return
@@ -398,12 +406,15 @@ def determine_user_statistics(msgs, group_ids, msg_type, users):
     
     Returns:
         stats: dictionary with key of user id and value of list contaning user's name and various volume stats
+        num_messages: the total number of messages analyzed by the program
     """
+    num_messages = 0
     stats = dict((element, {
         'name': '',
         'messages_sent': 0, 
         'likes_received': 0, 
         'likes_given': 0, 
+        'pct_msgs_liked': 0,
         'self_likes': 0, 
         'words_sent': 0,
         'images_sent': 0}) for element in users)
@@ -411,18 +422,25 @@ def determine_user_statistics(msgs, group_ids, msg_type, users):
         print("Analyzing group messages")
         for group in group_ids:
             for msg in msgs[group]:
-                process_message_stats(stats, msg)
+                process_message_stats(stats, msg, users)
+                num_messages += 1
+        for usr in users:
+            stats[usr].pop('pct_msgs_liked')
     elif msg_type.lower() == "direct":
         print("Analyzing direct messages")
         for chat in group_ids:
             for msg in msgs[chat]:
-                process_message_stats(stats, msg)
+                process_message_stats(stats, msg, users)
+                num_messages += 1
+        for usr in users:
+            if not stats[usr]['messages_sent'] == 0:
+                stats[usr]['pct_msgs_liked'] = round(stats[usr]['likes_received']/stats[usr]['messages_sent']*100,2)
     else:
         print("Provided message type not recognized")
-    return stats
+    return stats, num_messages
 
 
-def process_message_stats(stats, msg):
+def process_message_stats(stats, msg, users):
     """
     Updates volume statistics in stats dict for particular user(s) based on message data
 
@@ -431,7 +449,8 @@ def process_message_stats(stats, msg):
         msg: JSON data for a particular GroupMe message to analyze
     """
     if (msg['sender_id']) not in stats.keys():
-        stats[msg['sender_id']] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'self_likes': 0, 'words_sent': 0, 'images_sent': 0}
+        stats[msg['sender_id']] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'pct_msgs_liked': 0, 'self_likes': 0, 'words_sent': 0, 'images_sent': 0}
+        users.update([msg['sender_id']])
     if not bool(stats[msg['sender_id']]['name'] and stats[msg['sender_id']]['name'].strip()):
         stats[msg['sender_id']]['name'] = msg['name']
     stats[msg['sender_id']]['messages_sent'] += 1
@@ -439,7 +458,8 @@ def process_message_stats(stats, msg):
     if len(msg['favorited_by']) > 0:
         for usr in msg['favorited_by']:
             if usr not in stats.keys():
-                stats[usr] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'self_likes': 0, 'words_sent': 0, 'images_sent': 0}
+                stats[usr] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'pct_msgs_liked': 0, 'self_likes': 0, 'words_sent': 0, 'images_sent': 0}
+                users.update(msg['favorited_by'])
             stats[usr]['likes_given'] += 1
     if msg['sender_id'] in msg['favorited_by']:
         stats[msg['sender_id']]['self_likes'] += 1
@@ -452,15 +472,17 @@ def process_message_stats(stats, msg):
                 stats[msg['sender_id']]['images_sent'] += 1
 
 
-def write_to_csv(stats):
+def write_to_csv(stats, num_messages):
     """
     Writes the calculated stats to the file 'groupme_stats.csv'.
 
     Args:
         stats: dictionary with key of user id and value of list contaning user's name and various volume stats
+        num_messages: the total number of messages analyzed by the program
     """
     with open('groupme_stats.csv', 'w', encoding='utf-8-sig', newline = '') as csv_file:
         writer = csv.writer(csv_file)
+        csv_file.write("Analyzed " + str(num_messages) + " messages.\n")
         for key, value in stats.items():
             writer.writerow([key, value])
 
