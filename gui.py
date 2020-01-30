@@ -89,6 +89,10 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
         self.group_table_widget.itemSelectionChanged.connect(self.group_table_widget_update_selection)
         self.group_table_widget.setSelectionBehavior(PyQt5.QtWidgets.QAbstractItemView.SelectRows)
         self.group_table_widget.setEditTriggers(PyQt5.QtWidgets.QTableWidget.NoEditTriggers)
+        header = self.group_table_widget.horizontalHeader()
+        header.setSectionResizeMode(0, PyQt5.QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(1, PyQt5.QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, PyQt5.QtWidgets.QHeaderView.ResizeToContents)
         self.group_tab_layout.addWidget(self.group_table_widget, 1, 0)
         self.group_analysis_all_btn = PyQt5.QtWidgets.QPushButton('Analyze All', self)
         self.group_analysis_selected_btn = PyQt5.QtWidgets.QPushButton('Analyze Selected', self)
@@ -115,6 +119,10 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
         self.chat_table_widget.itemSelectionChanged.connect(self.chat_table_widget_update_selection)
         self.chat_table_widget.setSelectionBehavior(PyQt5.QtWidgets.QAbstractItemView.SelectRows)
         self.chat_table_widget.setEditTriggers(PyQt5.QtWidgets.QTableWidget.NoEditTriggers)
+        header = self.chat_table_widget.horizontalHeader()
+        header.setSectionResizeMode(0, PyQt5.QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(1, PyQt5.QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, PyQt5.QtWidgets.QHeaderView.ResizeToContents)
         self.chat_tab_layout.addWidget(self.chat_table_widget, 1, 0)
         self.chat_analysis_all_btn = PyQt5.QtWidgets.QPushButton('Analyze All', self)
         self.chat_analysis_selected_btn = PyQt5.QtWidgets.QPushButton('Analyze Selected', self)
@@ -151,9 +159,19 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
                     self.group_analysis_results = GroupMeStats.retrieve_group_messages(self.selected_group_ids, self.groups[2])
                     print(self.selected_group_ids)
                 else:
-                    print("Unable to begin")        # unexpected error dialog should go here
-            except AttributeError:                  # must select a row dialog should go here
-                print("Not yet created")
+                    error_dialog = PyQt5.QtWidgets.QMessageBox()
+                    error_dialog.setIcon(PyQt5.QtWidgets.QMessageBox.Critical)
+                    error_dialog.setText("Error")
+                    error_dialog.setInformativeText("Some error occurred. Expecting at least one group selected.")
+                    error_dialog.setWindowTitle("Error")
+                    error_dialog.exec_()
+            except AttributeError:
+                warning_dialog = PyQt5.QtWidgets.QMessageBox()
+                warning_dialog.setIcon(PyQt5.QtWidgets.QMessageBox.Warning)
+                warning_dialog.setText("Warning")
+                warning_dialog.setInformativeText("You should select at least one group to use this function.")
+                warning_dialog.setWindowTitle("Warning")
+                warning_dialog.exec_()
     
     def retrieve_chat_messages(self):
         if self.chat_analysis_all_btn == self.sender():
@@ -164,9 +182,19 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
                     self.chat_analysis_results = GroupMeStats.retrieve_chat_messages(self.selected_chat_ids, self.chats[2])
                     print(self.selected_chat_ids)
                 else:
-                    print("Unable to begin")        # unexpected error dialog here
-            except AttributeError:                  # must select a row dialog here
-                print("Not yet created")
+                    error_dialog = PyQt5.QtWidgets.QMessageBox()
+                    error_dialog.setIcon(PyQt5.QtWidgets.QMessageBox.Critical)
+                    error_dialog.setText("Error")
+                    error_dialog.setInformativeText("Some error occurred. Expecting at least one chat selected.")
+                    error_dialog.setWindowTitle("Error")
+                    error_dialog.exec_()
+            except AttributeError:
+                warning_dialog = PyQt5.QtWidgets.QMessageBox()
+                warning_dialog.setIcon(PyQt5.QtWidgets.QMessageBox.Warning)
+                warning_dialog.setText("Warning")
+                warning_dialog.setInformativeText("You should select at least one chat to use this function.")
+                warning_dialog.setWindowTitle("Warning")
+                warning_dialog.exec_()
 
 if __name__ == '__main__':
     app = PyQt5.QtWidgets.QApplication(sys.argv)
