@@ -147,7 +147,7 @@ def setup_argparser(parser):
     return parser.parse_args()
 
 
-def set_token(custom_args):
+def set_token(custom_args, from_gui = False):
     """
     Assign the TOKEN variable to its value, provided via command line or file.
 
@@ -161,10 +161,7 @@ def set_token(custom_args):
         FileNotFoundError if TOKEN if 'token.txt' file is not available in expected location, after checking for TOKEN via command line option
     """
     global TOKEN
-    if custom_args.token is not None:
-        TOKEN = custom_args.token
-        return True
-    else:
+    if from_gui:
         try:
             with open('token.txt', 'r') as token_file:
                 TOKEN = token_file.readline().strip('\n')
@@ -172,9 +169,21 @@ def set_token(custom_args):
         except FileNotFoundError:
             return False
         return False
+    else:
+        if custom_args.token is not None:
+            TOKEN = custom_args.token
+            return True
+        else:
+            try:
+                with open('token.txt', 'r') as token_file:
+                    TOKEN = token_file.readline().strip('\n')
+                    return True
+            except FileNotFoundError:
+                return False
+            return False
 
 
-def get_groups(users):
+def get_groups(users, suppress_print=False):
     """
     Retrieve active and former groups for the GroupMe profile.
 
@@ -189,14 +198,16 @@ def get_groups(users):
     #Active Groups
     r = requests.get("https://api.groupme.com/v3/groups?token=" + TOKEN + "&per_page=500") # max val allowed per API is 500 for groups
     data = r.json()
-    print("Active Groups")
-    print('{0: <2} {1: <40} {2: <10} {3: <12}'.format('#', 'Group Name', 'Group Id', 'Message Count'))
+    if not suppress_print:
+        print("Active Groups")
+        print('{0: <2} {1: <40} {2: <10} {3: <12}'.format('#', 'Group Name', 'Group Id', 'Message Count'))
     g_ids = []
     group_info = {}
     usr = []
     i = 0
     for element in data['response']:
-        print('{0: <2} {1: <40} {2: <10} {3: >12}'.format(i, process_name(element['name']), element['group_id'], element['messages']['count']))
+        if not suppress_print:
+            print('{0: <2} {1: <40} {2: <10} {3: >12}'.format(i, process_name(element['name']), element['group_id'], element['messages']['count']))
         g_ids.append(element['group_id'])
         group_info[element['group_id']] = [element['name'], element['messages']['count']]
         for member in element['members']:
@@ -207,18 +218,21 @@ def get_groups(users):
     # Former Groups
     r = requests.get("https://api.groupme.com/v3/groups/former?token=" + TOKEN + "&per_page=500")
     data = r.json()
-    print("\nFormer Groups (you must rejoin these groups to analyze messages)")
-    print('{0: <2} {1: <40} {2: <10}'.format('#', 'Group Name', 'Group Id'))
+    if not suppress_print:
+        print("\nFormer Groups (you must rejoin these groups to analyze messages)")
+        print('{0: <2} {1: <40} {2: <10}'.format('#', 'Group Name', 'Group Id'))
     for element in data['response']:
         # These groups are not added to g_ids because their messages cannot be later retrieved as former groups
-        print('{0: <2} {1: <40} {2: <10}'.format(i, process_name(element['name']), element['group_id']))
+        if not suppress_print:
+            print('{0: <2} {1: <40} {2: <10}'.format(i, process_name(element['name']), element['group_id']))
         i += 1
-    print("\n")
+    if not suppress_print:
+        print("\n")
     users.update(usr)
     return data, g_ids, group_info
 
 
-def get_chats(users):
+def get_chats(users, suppress_print=False):
     """
     Retrieve active chats for the GroupMe profile.
 
@@ -232,16 +246,19 @@ def get_chats(users):
     """
     r = requests.get("https://api.groupme.com/v3/chats?token=" + TOKEN + "&per_page=100") # max val allowed per API is 100 for chats
     data = r.json()
-    print('{0: <2} {1: <40} {2: <10} {3: <12}'.format('#', 'Person Name', 'Chat Id', 'Message Count'))
+    if not suppress_print:
+        print('{0: <2} {1: <40} {2: <10} {3: <12}'.format('#', 'Person Name', 'Chat Id', 'Message Count'))
     c_ids = []
     chat_info = {}
     i = 0
     for element in data['response']:
-        print('{0: <2} {1: <40} {2: <10} {3: >12}'.format(i, process_name(element['other_user']['name']), element['other_user']['id'], element['messages_count']))
+        if not suppress_print:
+            print('{0: <2} {1: <40} {2: <10} {3: >12}'.format(i, process_name(element['other_user']['name']), element['other_user']['id'], element['messages_count']))
         c_ids.append(element['other_user']['id'])
         chat_info[element['other_user']['id']] = [element['other_user']['name'], element['messages_count']]
         i += 1
-    print("\n")
+    if not suppress_print:
+        print("\n")
     users.update(c_ids)
     return data, c_ids, chat_info
 
