@@ -8,20 +8,17 @@ In order to run the program, certain requirements must be met in terms of its ru
 This program was developed in Python 3.7.1 and requires a version of Python 3 to be installed in some form in order to run. Python downloads are available [here](https://www.python.org/downloads/).
 
 ### Python Dependencies
-A few Python modules are used as part of this program and must be installed. Some may already be included with the standard installation of Python; however, a comprehensive list is provided here in the event this is not the case. [Pip](https://pip.pypa.io/en/stable/) can be used to install the modules and is included with Python versions 3.4 or newer.
-The complete list of modules used in this program are as follows:
- * [argparse](https://docs.python.org/3/library/argparse.html)
- * [csv](https://docs.python.org/3/library/csv.html)
- * [json](https://docs.python.org/3/library/json.html)
- * [pickle](https://docs.python.org/3/library/pickle.html)
- * [requests](https://2.python-requests.org/en/master/)
- * [sys](https://docs.python.org/3/library/sys.html)
- * [time](https://docs.python.org/3/library/time.html)
+A few Python modules are used as part of this program and must be installed. Some may already be included with the standard installation of Python; however, a comprehensive list is provided in the requirements.txt file in the event this is not the case. [Pip](https://pip.pypa.io/en/stable/) can be used to install the modules and is included with Python versions 3.4 or newer.
  
  
-The following libraries can be installed with pip using the following syntax (using argparse as an example):
+The following libraries can be installed manually with pip using the following syntax (using argparse as an example):
 ```
 pip3 install argparse
+```
+
+or by using the requirements.txt file with the following syntax:
+```
+pip install -r requirements.txt
 ```
 
 ## Use
