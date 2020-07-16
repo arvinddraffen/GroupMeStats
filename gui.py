@@ -67,14 +67,60 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
         print("This is the settings tab")
     
     def get_groups(self):
-        if not GroupMeStats.set_token(None, from_gui=True):
-            sys.exit()
-        return GroupMeStats.get_groups(self.users, suppress_print=True)
+        while not GroupMeStats.set_token(None, from_gui=True):
+            self.token_error_dialog()
+            self.get_token()
+        valid_token = False
+        while not valid_token:
+            try:
+                groups = GroupMeStats.get_groups(self.users, suppress_print=True)
+                valid_token = True
+            except KeyError:
+                valid_token = False
+                self.token_error_dialog()
+                self.get_token()
+        return groups
 
     def get_chats(self):
-        if not GroupMeStats.set_token(None, from_gui=True):
-            sys.exit()
-        return GroupMeStats.get_chats(self.users, suppress_print=True)
+        while not GroupMeStats.set_token(None, from_gui=True):
+            self.token_error_dialog()
+            self.get_token()
+        valid_token = False
+        while not valid_token:
+            try:
+                chats = GroupMeStats.get_chats(self.users, suppress_print=True)
+                valid_token = True
+            except KeyError:
+                valid_token = False
+                self.token_error_dialog()
+                self.get_token()
+        return chats
+    
+    def get_token(self):
+        token_dialog = PyQt5.QtWidgets.QDialog()
+        token_dialog.setWindowTitle("Token")
+        token_dialog_layout = PyQt5.QtWidgets.QVBoxLayout(token_dialog)
+        token_lineedit = PyQt5.QtWidgets.QLineEdit()
+        token_lineedit.setPlaceholderText("Please enter your token")
+        okay_btn = PyQt5.QtWidgets.QPushButton("Confirm")
+        okay_btn.clicked.connect(lambda:self.save_entered_token(token_lineedit.text()))
+        okay_btn.clicked.connect(lambda:token_dialog.close())
+        token_dialog_layout.addWidget(token_lineedit)
+        token_dialog_layout.addWidget(okay_btn)
+        token_dialog.setLayout(token_dialog_layout)
+        token_dialog.exec()
+    
+    def token_error_dialog(self):
+        incorrect_token_dialog = PyQt5.QtWidgets.QErrorMessage()
+        incorrect_token_dialog.setWindowTitle("Token Error")
+        incorrect_token_dialog.showMessage("Your token appears to be incorrect or missing.\nPlease enter your token in the following dialog")
+        incorrect_token_dialog.exec()
+    
+    def save_entered_token(self, token):
+        if len(token) > 0:
+            with open('token.txt', 'w') as token_file:
+                token_file.write(token)
+            GroupMeStats.TOKEN = token
     
     def setup_group_table_widget(self):
         self.groups = self.get_groups()

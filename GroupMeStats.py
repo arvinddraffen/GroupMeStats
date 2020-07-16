@@ -25,7 +25,7 @@ def main():
     if custom_args.messages_direct:
         retrieved_chats = get_chats(users)
         chat_ids, chat_info = retrieved_chats[1], retrieved_chats[2]
-        if custom_args.id_select is not -1:
+        if custom_args.id_select != -1:
             if custom_args.id_select <= len(chat_ids):
                 if not custom_args.all_users:
                     users.clear()
@@ -52,7 +52,7 @@ def main():
     if custom_args.messages_group:
         retrieved_groups = get_groups(users)
         group_ids, group_info = retrieved_groups[1], retrieved_groups[2]
-        if custom_args.id_select is not -1:
+        if custom_args.id_select != -1:
             try:
                 if custom_args.id_select <= len(group_ids):
                     if not custom_args.all_users:
