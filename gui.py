@@ -1,4 +1,6 @@
 import PyQt5.QtWidgets
+import pyqtgraph
+from pyqtgraph import PlotWidget, plot
 import sys
 import GroupMeStats
 
@@ -30,10 +32,12 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
         self.group_tab = PyQt5.QtWidgets.QWidget()
         self.chat_tab = PyQt5.QtWidgets.QWidget()
         self.settings_tab = PyQt5.QtWidgets.QWidget()
+        self.stats_tab = PyQt5.QtWidgets.QScrollArea()
 
         self.setup_group_tab()
         self.setup_chat_tab()
         self.setup_settings_tab()
+        self.setup_stats_tab()
 
         self.tab_widget.addTab(self.group_tab, "Groups")
         self.tab_widget.addTab(self.chat_tab, "Chats")
@@ -65,6 +69,16 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
     
     def setup_settings_tab(self):
         print("This is the settings tab")
+    
+    def setup_stats_tab(self):
+        self.stats_tab.setVerticalScrollBarPolicy(PyQt5.QtCore.Qt.ScrollBarAlwaysOn)
+        self.stats_tab_widget = PyQt5.QtWidgets.QWidget() #content
+        self.stats_tab.setWidget(self.stats_tab_widget)
+        self.stats_tab_layout = PyQt5.QtWidgets.QFormLayout(self.stats_tab_widget)
+        self.stats_tab.setWidgetResizable(True)
+        test = PyQt5.QtWidgets.QLabel("test")
+        self.stats_tab_layout.addRow(test)
+        
     
     def get_groups(self):
         while not GroupMeStats.set_token(None, from_gui=True):
@@ -151,6 +165,12 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
         group_tab_sublayout_2.addWidget(self.group_analysis_selected_btn)
         group_tab_sublayout_2.addStretch()
         self.group_tab_layout.addLayout(group_tab_sublayout_2, 2, 0)
+        label = PyQt5.QtWidgets.QLabel("No multithreading currently. GUI may lock up when retrieving messages from GroupMe servers.")
+        label.setWordWrap(True)
+        label.setAlignment(PyQt5.QtCore.Qt.AlignCenter)
+        group_tab_sublayout3 = PyQt5.QtWidgets.QHBoxLayout()
+        group_tab_sublayout3.addWidget(label)
+        self.group_tab_layout.addLayout(group_tab_sublayout3, 3, 0)
     
     def setup_chat_table_widget(self):
         self.chats = self.get_chats()
@@ -181,6 +201,12 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
         chat_tab_sublayout2.addWidget(self.chat_analysis_selected_btn)
         chat_tab_sublayout2.addStretch()
         self.chat_tab_layout.addLayout(chat_tab_sublayout2, 2, 0)
+        label = PyQt5.QtWidgets.QLabel("No multithreading currently. GUI may lock up when retrieving messages from GroupMe servers.")
+        label.setWordWrap(True)
+        label.setAlignment(PyQt5.QtCore.Qt.AlignCenter)
+        chat_tab_sublayout3 = PyQt5.QtWidgets.QHBoxLayout()
+        chat_tab_sublayout3.addWidget(label)
+        self.chat_tab_layout.addLayout(chat_tab_sublayout3, 3, 0)
 
     def group_table_widget_update_selection(self):
         selected_groups = self.group_table_widget.selectedItems()
@@ -199,11 +225,13 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
     def retrieve_group_messages(self):
         if self.group_analysis_all_btn == self.sender():
             self.group_analysis_results = GroupMeStats.retrieve_group_messages(self.groups[1], self.groups[2])
+            self.display_statistics()
         elif self.group_analysis_selected_btn == self.sender():
             try:
                 if len(self.selected_group_ids) > 0:
                     self.group_analysis_results = GroupMeStats.retrieve_group_messages(self.selected_group_ids, self.groups[2])
                     print(self.selected_group_ids)
+                    self.display_statistics()
                 else:
                     error_dialog = PyQt5.QtWidgets.QMessageBox()
                     error_dialog.setIcon(PyQt5.QtWidgets.QMessageBox.Critical)
@@ -222,11 +250,13 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
     def retrieve_chat_messages(self):
         if self.chat_analysis_all_btn == self.sender():
             self.chat_analysis_results = GroupMeStats.retrieve_chat_messages(self.chats[1], self.chats[2])
+            self.display_statistics()
         elif self.chat_analysis_selected_btn == self.sender():
             try:
                 if len(self.selected_chat_ids) > 0:
                     self.chat_analysis_results = GroupMeStats.retrieve_chat_messages(self.selected_chat_ids, self.chats[2])
                     print(self.selected_chat_ids)
+                    self.display_statistics()
                 else:
                     error_dialog = PyQt5.QtWidgets.QMessageBox()
                     error_dialog.setIcon(PyQt5.QtWidgets.QMessageBox.Critical)
@@ -241,6 +271,15 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
                 warning_dialog.setInformativeText("You should select at least one chat to use this function.")
                 warning_dialog.setWindowTitle("Warning")
                 warning_dialog.exec_()
+    
+    def display_statistics(self):
+        self.tab_widget.addTab(self.stats_tab, "Stats")
+        self.tab_widget.setCurrentIndex(3)
+        hour = [1,2,3,4,5,6,7,8,9,10]
+        temperature = [30,32,34,32,33,31,29,32,35,45]
+        test = pyqtgraph.PlotWidget()
+        test.plot(hour, temperature)
+        self.stats_tab_layout.addRow(test)
 
 if __name__ == '__main__':
     app = PyQt5.QtWidgets.QApplication(sys.argv)
