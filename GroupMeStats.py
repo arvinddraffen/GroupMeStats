@@ -25,7 +25,7 @@ def main():
     if custom_args.messages_direct:
         retrieved_chats = get_chats(users)
         chat_ids, chat_info = retrieved_chats[1], retrieved_chats[2]
-        if custom_args.id_select is not -1:
+        if custom_args.id_select != -1:
             if custom_args.id_select <= len(chat_ids):
                 if not custom_args.all_users:
                     users.clear()
@@ -52,7 +52,7 @@ def main():
     if custom_args.messages_group:
         retrieved_groups = get_groups(users)
         group_ids, group_info = retrieved_groups[1], retrieved_groups[2]
-        if custom_args.id_select is not -1:
+        if custom_args.id_select != -1:
             try:
                 if custom_args.id_select <= len(group_ids):
                     if not custom_args.all_users:
@@ -433,6 +433,7 @@ def determine_user_statistics(msgs, group_ids, msg_type, users):
         'likes_given': 0, 
         'pct_msgs_liked': 0,
         'self_likes': 0, 
+        'exclusive_self_likes': 0,
         'words_sent': 0,
         'images_sent': 0}) for element in users)
     if msg_type.lower() == 'group':
@@ -466,7 +467,7 @@ def process_message_stats(stats, msg, users):
         msg: JSON data for a particular GroupMe message to analyze
     """
     if (msg['sender_id']) not in stats.keys():
-        stats[msg['sender_id']] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'pct_msgs_liked': 0, 'self_likes': 0, 'words_sent': 0, 'images_sent': 0}
+        stats[msg['sender_id']] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'pct_msgs_liked': 0, 'self_likes': 0, 'exclusive_self_likes': 0, 'words_sent': 0, 'images_sent': 0}
         users.update([msg['sender_id']])
     if not bool(stats[msg['sender_id']]['name'] and stats[msg['sender_id']]['name'].strip()):
         stats[msg['sender_id']]['name'] = msg['name']
@@ -475,11 +476,13 @@ def process_message_stats(stats, msg, users):
     if len(msg['favorited_by']) > 0:
         for usr in msg['favorited_by']:
             if usr not in stats.keys():
-                stats[usr] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'pct_msgs_liked': 0, 'self_likes': 0, 'words_sent': 0, 'images_sent': 0}
+                stats[usr] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'pct_msgs_liked': 0, 'self_likes': 0, 'exclusive_self_likes': 0, 'words_sent': 0, 'images_sent': 0}
                 users.update(msg['favorited_by'])
             stats[usr]['likes_given'] += 1
     if msg['sender_id'] in msg['favorited_by']:
         stats[msg['sender_id']]['self_likes'] += 1
+        if len(msg['favorited_by']) == 1:
+            stats[msg['sender_id']]['exclusive_self_likes'] += 1
     if msg['text'] is not None:
         msg['text'].split(' ')
         stats[msg['sender_id']]['words_sent'] += len(msg['text'].split(' '))
