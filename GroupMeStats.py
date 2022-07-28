@@ -297,7 +297,7 @@ def retrieve_group_messages(group_ids, group_info):
     return group_analysis_results
 
     
-def retrieve_chat_messages(chat_ids, chat_info):
+def retrieve_chat_messages(chat_ids, chat_info, from_gui = False):
     """
     Retrieve all messages for all chats in chat_ids, retrieves for each group sequentially.
 

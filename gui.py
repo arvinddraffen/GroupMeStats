@@ -79,7 +79,7 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
     def setup_group_table_widget(self):
         self.groups = self.get_groups()
         self.group_table_widget = PyQt5.QtWidgets.QTableWidget(len(self.groups[1]), 3, self)
-        self.group_table_widget.setHorizontalHeaderLabels(['Group', 'Message Count', 'Group ID'])
+        self.group_table_widget.setHorizontalHeaderLabels(['Group', '  Message Count  ', '  Group ID  '])
         i = 0
         for group in self.groups[1]:
             self.group_table_widget.setItem(i, 0, PyQt5.QtWidgets.QTableWidgetItem(self.groups[2][group][0]))
@@ -109,7 +109,7 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
     def setup_chat_table_widget(self):
         self.chats = self.get_chats()
         self.chat_table_widget = PyQt5.QtWidgets.QTableWidget(len(self.chats[1]), 3, self)
-        self.chat_table_widget.setHorizontalHeaderLabels(['Chat', 'Message Count', 'Chat ID'])
+        self.chat_table_widget.setHorizontalHeaderLabels(['Chat', '  Message Count  ', '  Chat ID  '])
         i = 0
         for chat in self.chats[1]:
             self.chat_table_widget.setItem(i, 0, PyQt5.QtWidgets.QTableWidgetItem(self.chats[2][chat][0]))
@@ -152,11 +152,11 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
     
     def retrieve_group_messages(self):
         if self.group_analysis_all_btn == self.sender():
-            self.group_analysis_results = GroupMeStats.retrieve_group_messages(self.groups[1], self.groups[2])
+            self.received_groups = GroupMeStats.retrieve_group_messages(self.groups[1], self.groups[2])
         elif self.group_analysis_selected_btn == self.sender():
             try:
                 if len(self.selected_group_ids) > 0:
-                    self.group_analysis_results = GroupMeStats.retrieve_group_messages(self.selected_group_ids, self.groups[2])
+                    self.received_groups = GroupMeStats.retrieve_group_messages(self.selected_group_ids, self.groups[2])
                     print(self.selected_group_ids)
                 else:
                     error_dialog = PyQt5.QtWidgets.QMessageBox()
@@ -172,14 +172,21 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
                 warning_dialog.setInformativeText("You should select at least one group to use this function.")
                 warning_dialog.setWindowTitle("Warning")
                 warning_dialog.exec_()
+        else:       # should never hit
+            return
     
     def retrieve_chat_messages(self):
         if self.chat_analysis_all_btn == self.sender():
-            self.chat_analysis_results = GroupMeStats.retrieve_chat_messages(self.chats[1], self.chats[2])
+            self.selected_chat_ids = self.chats[1]
+            self.received_chats = GroupMeStats.retrieve_chat_messages(self.chats[1], self.chats[2], from_gui = True)
         elif self.chat_analysis_selected_btn == self.sender():
             try:
                 if len(self.selected_chat_ids) > 0:
-                    self.chat_analysis_results = GroupMeStats.retrieve_chat_messages(self.selected_chat_ids, self.chats[2])
+                    # message_dialog = PyQt5.QtWidgets.QMessageBox()
+                    # message_dialog.setText("Please Wait")
+                    # message_dialog.setInformativeText("Retrieving messages")
+                    # message_dialog.show()
+                    self.received_chats = GroupMeStats.retrieve_chat_messages(self.selected_chat_ids, self.chats[2], from_gui = True)
                     print(self.selected_chat_ids)
                 else:
                     error_dialog = PyQt5.QtWidgets.QMessageBox()
@@ -195,6 +202,19 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
                 warning_dialog.setInformativeText("You should select at least one chat to use this function.")
                 warning_dialog.setWindowTitle("Warning")
                 warning_dialog.exec_()
+        else:       # should never hit
+            return
+        
+        users = set()
+        total_stats = {}
+        chat_stats = GroupMeStats.determine_user_statistics(self.received_chats, self.selected_chat_ids, 'direct', users)
+        total_stats.update(chat_stats[0])
+        num_messages = chat_stats[1]
+
+class OutputWindow(PyQt5.QtWidgets.QPlainTextEdit):
+    def write(self, text):
+        self.appendPlainText("str(text)")
+        self.update()
 
 if __name__ == '__main__':
     app = PyQt5.QtWidgets.QApplication(sys.argv)
