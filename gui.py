@@ -152,11 +152,11 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
     
     def retrieve_group_messages(self):
         if self.group_analysis_all_btn == self.sender():
-            self.received_groups = GroupMeStats.retrieve_group_messages(self.groups[1], self.groups[2])
+            self.received_group_msgs = GroupMeStats.retrieve_group_messages(self.groups[1], self.groups[2])
         elif self.group_analysis_selected_btn == self.sender():
             try:
                 if len(self.selected_group_ids) > 0:
-                    self.received_groups = GroupMeStats.retrieve_group_messages(self.selected_group_ids, self.groups[2])
+                    self.received_group_msgs = GroupMeStats.retrieve_group_messages(self.selected_group_ids, self.groups[2])
                     print(self.selected_group_ids)
                 else:
                     error_dialog = PyQt5.QtWidgets.QMessageBox()
@@ -175,10 +175,16 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
         else:       # should never hit
             return
     
+        total_stats = {}
+        group_stats = GroupMeStats.determine_user_statistics(self.received_group_msgs, self.selected_group_ids, 'group', self.users)
+        total_stats.update(group_stats[0])
+        num_messages = group_stats[1]
+        GroupMeStats.write_to_csv(total_stats, num_messages)
+    
     def retrieve_chat_messages(self):
         if self.chat_analysis_all_btn == self.sender():
             self.selected_chat_ids = self.chats[1]
-            self.received_chats = GroupMeStats.retrieve_chat_messages(self.chats[1], self.chats[2], from_gui = True)
+            self.received_chat_msgs = GroupMeStats.retrieve_chat_messages(self.chats[1], self.chats[2], from_gui = True)
         elif self.chat_analysis_selected_btn == self.sender():
             try:
                 if len(self.selected_chat_ids) > 0:
@@ -186,7 +192,7 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
                     # message_dialog.setText("Please Wait")
                     # message_dialog.setInformativeText("Retrieving messages")
                     # message_dialog.show()
-                    self.received_chats = GroupMeStats.retrieve_chat_messages(self.selected_chat_ids, self.chats[2], from_gui = True)
+                    self.received_chat_msgs = GroupMeStats.retrieve_chat_messages(self.selected_chat_ids, self.chats[2], from_gui = True)
                     print(self.selected_chat_ids)
                 else:
                     error_dialog = PyQt5.QtWidgets.QMessageBox()
@@ -204,12 +210,12 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
                 warning_dialog.exec_()
         else:       # should never hit
             return
-        
-        users = set()
+
         total_stats = {}
-        chat_stats = GroupMeStats.determine_user_statistics(self.received_chats, self.selected_chat_ids, 'direct', users)
+        chat_stats = GroupMeStats.determine_user_statistics(self.received_chat_msgs, self.selected_chat_ids, 'direct', self.users)
         total_stats.update(chat_stats[0])
         num_messages = chat_stats[1]
+        GroupMeStats.write_to_csv(total_stats, num_messages)
 
 class OutputWindow(PyQt5.QtWidgets.QPlainTextEdit):
     def write(self, text):
