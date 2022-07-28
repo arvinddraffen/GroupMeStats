@@ -1,6 +1,8 @@
 import PyQt5.QtWidgets
 import sys
 import GroupMeStats
+from pyqtgraph import PlotWidget, plot, AxisItem
+import pyqtgraph
 
 class GUI(PyQt5.QtWidgets.QMainWindow):
     def __init__(self):
@@ -17,6 +19,30 @@ class GUI(PyQt5.QtWidgets.QMainWindow):
     def init_tab_widget(self):
         self.tab_widget = TabWidget(self)
 
+class GraphManager(pyqtgraph.PlotWidget):
+    def __init__(self, parent=None, background='default', plotItem=None, **kargs):
+        super().__init__(parent, background, plotItem, **kargs)
+        self.stringaxis = pyqtgraph.AxisItem(orientation="bottom")
+        self.setBackground('w')
+    
+    def set_x_axis(self, values: list):
+        self.x_axis = values
+        self.x_axis_dict = dict(enumerate(self.x_axis))
+    
+    def set_y_axis(self, values: list):
+        self.y_axis = values
+    
+    def set_axes(self, x_values: list, y_values: list):
+        self.set_x_axis(x_values)
+        self.set_y_axis(y_values)
+    
+    def plot_graph(self):
+        self.stringaxis.setTicks([self.x_axis_dict.items()])
+        self.setAxisItems(axisItems = {'bottom': self.stringaxis})
+        # self.plot(list(self.x_axis_dict.keys()), self.y_axis)
+        bargraph = pyqtgraph.BarGraphItem(x = list(self.x_axis_dict.keys()), height = self.y_axis, width = 1.0)
+        self.addItem(bargraph)
+
 
 class TabWidget(PyQt5.QtWidgets.QWidget):
     def __init__(self, parent):
@@ -29,15 +55,18 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
         self.tab_widget = PyQt5.QtWidgets.QTabWidget()
         self.group_tab = PyQt5.QtWidgets.QWidget()
         self.chat_tab = PyQt5.QtWidgets.QWidget()
+        self.plots_tab = PyQt5.QtWidgets.QWidget()
         self.settings_tab = PyQt5.QtWidgets.QWidget()
 
         self.setup_group_tab()
         self.setup_chat_tab()
+        self.setup_plots_tab()
         self.setup_settings_tab()
 
         self.tab_widget.addTab(self.group_tab, "Groups")
         self.tab_widget.addTab(self.chat_tab, "Chats")
         self.tab_widget.addTab(self.settings_tab, "Settings")
+        self.tab_widget.addTab(self.plots_tab, "Graphs")
         self.layout.addWidget(self.tab_widget)
         self.setLayout(self.layout)
 
@@ -62,6 +91,32 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
         self.chat_tab_sublayout.addStretch()
         self.chat_tab_layout.addLayout(self.chat_tab_sublayout, 0, 0)
         self.chat_tab.setLayout(self.chat_tab_layout)
+    
+    def setup_plots_tab(self):
+        print("This is the plots tab")
+        self.generate_plots_layout()
+
+    def generate_plots_layout(self):
+        self.plots_tab_layout = PyQt5.QtWidgets.QGridLayout(self.plots_tab)
+        # messages sent
+        self.messages_sent_graph = GraphManager(parent=self.plots_tab)
+        self.plots_tab_layout.addWidget(self.messages_sent_graph, 0, 0)
+        # likes received
+        self.likes_received_graph = GraphManager(parent=self.plots_tab)
+        self.plots_tab_layout.addWidget(self.likes_received_graph, 0, 1)
+        # likes given
+        self.likes_given_graph = GraphManager(parent=self.plots_tab)
+        self.plots_tab_layout.addWidget(self.likes_given_graph, 0, 2)
+        # self likes
+        self.self_likes_graph = GraphManager(parent=self.plots_tab)
+        self.plots_tab_layout.addWidget(self.self_likes_graph, 1, 0)
+        # words sent
+        self.words_sent_graph = GraphManager(parent=self.plots_tab)
+        self.plots_tab_layout.addWidget(self.words_sent_graph, 1, 1)
+        # images sent
+        self.images_sent_graph = GraphManager(parent=self.plots_tab)
+        self.plots_tab_layout.addWidget(self.images_sent_graph, 1, 2)
+        self.plots_tab.setLayout(self.plots_tab_layout)
     
     def setup_settings_tab(self):
         print("This is the settings tab")
@@ -216,6 +271,36 @@ class TabWidget(PyQt5.QtWidgets.QWidget):
         total_stats.update(chat_stats[0])
         num_messages = chat_stats[1]
         GroupMeStats.write_to_csv(total_stats, num_messages)
+        self.plot_chat_messages(total_stats)
+    
+    def plot_chat_messages(self, stats):
+        x_axis = []
+        messages_sent_y_axis, likes_received_y_axis, likes_given_y_axis, self_likes_y_axis, words_sent_y_axis, images_sent_y_axis = ([] for i in range(6))
+        for key, value in stats.items():
+            if stats[key]["name"]:
+                x_axis.append(value["name"])
+            else:
+                x_axis.append(key)
+            messages_sent_y_axis.append(value["messages_sent"])
+            likes_received_y_axis.append(value["likes_received"])
+            likes_given_y_axis.append(value["likes_given"])
+            self_likes_y_axis.append(value["self_likes"])
+            words_sent_y_axis.append(value["words_sent"])
+            images_sent_y_axis.append(value["images_sent"])
+        
+        self.messages_sent_graph.set_axes(x_axis, messages_sent_y_axis)
+        self.likes_received_graph.set_axes(x_axis, likes_received_y_axis)
+        self.likes_given_graph.set_axes(x_axis, likes_given_y_axis)
+        self.self_likes_graph.set_axes(x_axis, self_likes_y_axis)
+        self.words_sent_graph.set_axes(x_axis, words_sent_y_axis)
+        self.images_sent_graph.set_axes(x_axis, images_sent_y_axis)
+        self.messages_sent_graph.plot_graph()
+        self.likes_received_graph.plot_graph()
+        self.likes_given_graph.plot_graph()
+        self.self_likes_graph.plot_graph()
+        self.words_sent_graph.plot_graph()
+        self.images_sent_graph.plot_graph()
+
 
 class OutputWindow(PyQt5.QtWidgets.QPlainTextEdit):
     def write(self, text):
