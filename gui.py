@@ -65,7 +65,7 @@ class GraphManager(pyqtgraph.PlotWidget):
         self.setAxisItems(axisItems = {'bottom': self.stringaxis})
         bottom = numpy.zeros(len(df))
         for col, color in zip(df.columns, self.colors):
-            bargraph = pyqtgraph.BarGraphItem(x = list(x_axis_dictionary.keys()), height = df[col].values.tolist(), width = 1.0, brush = pyqtgraph.mkBrush(color = color), pen = pyqtgraph.mkPen(color = color))
+            bargraph = pyqtgraph.BarGraphItem(x = list(x_axis_dictionary.keys()), height = df[col].values.tolist(), y0 = bottom, width = 1.0, brush = pyqtgraph.mkBrush(color = color), pen = pyqtgraph.mkPen(color = color))
             self.addItem(bargraph)
             bottom += df[col].values.tolist()
         if self.title:
