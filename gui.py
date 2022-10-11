@@ -25,6 +25,7 @@ class GraphManager(pyqtgraph.PlotWidget):
     def __init__(self, title="", xLabel="", yLabel="", parent=None, background='default', plotItem=None, **kargs):
         super().__init__(parent, background, plotItem, **kargs)
         self.stringaxis = pyqtgraph.AxisItem(orientation="bottom")
+        QtWidgets.QWidget.setMinimumSize(self, 300, 300)
         self.setBackground('w')
         if title:
             self.title = title
@@ -106,7 +107,13 @@ class TabWidget(QtWidgets.QWidget):
         self.generate_plots_layout()
 
     def generate_plots_layout(self):
-        self.plots_tab_layout = QtWidgets.QGridLayout(self.plots_tab)
+        self.plots_tab_layout_primary = QtWidgets.QHBoxLayout(self.plots_tab)
+        self.scroll_area = QtWidgets.QScrollArea(self.plots_tab)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area_widget_contents = QtWidgets.QWidget()
+        self.plots_tab_layout = QtWidgets.QGridLayout(self.scroll_area_widget_contents)
+        self.scroll_area.setWidget(self.scroll_area_widget_contents)
+        self.plots_tab_layout_primary.addWidget(self.scroll_area)
         # messages sent
         self.messages_sent_graph = GraphManager(parent=self.plots_tab, title="Messages Sent Per User", xLabel="User", yLabel="Message Count")
         self.plots_tab_layout.addWidget(self.messages_sent_graph, 0, 0)
