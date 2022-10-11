@@ -5,6 +5,7 @@ import json
 import pickle
 import re
 import requests
+import string
 import sys
 import time
 
@@ -490,7 +491,8 @@ def determine_user_statistics(msgs, group_ids, msg_type, users):
         'pct_msgs_liked': 0,
         'self_likes': 0, 
         'words_sent': 0,
-        'images_sent': 0}) for element in users)
+        'images_sent': 0,
+        'common_words': dict()}) for element in users)
     if msg_type.lower() == 'group':
         print("Analyzing group messages")
         for group in group_ids:
@@ -499,6 +501,8 @@ def determine_user_statistics(msgs, group_ids, msg_type, users):
                 num_messages += 1
         for usr in users:
             stats[usr].pop('pct_msgs_liked')
+            common_words_dict = dict(sorted(stats[usr]['common_words'].items(), key=lambda item: item[1]))
+            stats[usr]['common_words'] = common_words_dict
     elif msg_type.lower() == "direct":
         print("Analyzing direct messages")
         for chat in group_ids:
@@ -508,6 +512,8 @@ def determine_user_statistics(msgs, group_ids, msg_type, users):
         for usr in users:
             if not stats[usr]['messages_sent'] == 0:
                 stats[usr]['pct_msgs_liked'] = round(stats[usr]['likes_received']/stats[usr]['messages_sent']*100,2)
+            common_words_dict = dict(sorted(stats[usr]['common_words'].items(), key=lambda item: item[1], reverse=True))
+            stats[usr]['common_words'] = common_words_dict
     else:
         print("Provided message type not recognized")
     return stats, num_messages
@@ -522,7 +528,7 @@ def process_message_stats(stats, msg, users):
         msg: JSON data for a particular GroupMe message to analyze
     """
     if (msg['sender_id']) not in stats.keys():
-        stats[msg['sender_id']] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'pct_msgs_liked': 0, 'self_likes': 0, 'words_sent': 0, 'images_sent': 0}
+        stats[msg['sender_id']] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'pct_msgs_liked': 0, 'self_likes': 0, 'words_sent': 0, 'images_sent': 0, 'common_words': dict()}
         users.update([msg['sender_id']])
     if not bool(stats[msg['sender_id']]['name'] and stats[msg['sender_id']]['name'].strip()):
         stats[msg['sender_id']]['name'] = msg['name']
@@ -531,14 +537,22 @@ def process_message_stats(stats, msg, users):
     if len(msg['favorited_by']) > 0:
         for usr in msg['favorited_by']:
             if usr not in stats.keys():
-                stats[usr] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'pct_msgs_liked': 0, 'self_likes': 0, 'words_sent': 0, 'images_sent': 0}
+                stats[usr] = {'name': '', 'messages_sent': 0, 'likes_received': 0, 'likes_given': 0, 'pct_msgs_liked': 0, 'self_likes': 0, 'words_sent': 0, 'images_sent': 0, 'common_words': dict()}
                 users.update(msg['favorited_by'])
             stats[usr]['likes_given'] += 1
     if msg['sender_id'] in msg['favorited_by']:
         stats[msg['sender_id']]['self_likes'] += 1
     if msg['text'] is not None:
-        msg['text'].split(' ')
-        stats[msg['sender_id']]['words_sent'] += len(msg['text'].split(' '))
+        words = msg['text'].split(' ')
+        stats[msg['sender_id']]['words_sent'] += len(words)
+        table = str.maketrans(dict.fromkeys(string.punctuation))
+        for word in words:
+            word_no_punctuation = word.translate(table)
+            if word_no_punctuation:
+                if word_no_punctuation not in stats[msg['sender_id']]['common_words'].keys():
+                    stats[msg['sender_id']]['common_words'][word_no_punctuation] = 1
+                else:
+                    stats[msg['sender_id']]['common_words'][word_no_punctuation] += 1
     if msg['attachments']:
         for attachment in msg['attachments']:
             if attachment['type'] == 'image':

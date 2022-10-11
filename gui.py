@@ -1,8 +1,12 @@
 from nntplib import GroupInfo
 from tkinter import Scrollbar
+from turtle import width
 from PyQt5 import QtCore, QtWidgets, QtGui
 import sys
+from matplotlib import cm
 import GroupMeStats
+import numpy
+import pandas
 from pyqtgraph import PlotWidget, plot, AxisItem
 import pyqtgraph
 
@@ -25,6 +29,8 @@ class GraphManager(pyqtgraph.PlotWidget):
     def __init__(self, title="", xLabel="", yLabel="", parent=None, background='default', plotItem=None, **kargs):
         super().__init__(parent, background, plotItem, **kargs)
         self.stringaxis = pyqtgraph.AxisItem(orientation="bottom")
+        cmap = cm.get_cmap('jet')
+        self.colors = [tuple(255*x for x in cmap(i/10))[:-1] for i in range(10)]
         QtWidgets.QWidget.setMinimumSize(self, 300, 300)
         self.setBackground('w')
         if title:
@@ -50,6 +56,18 @@ class GraphManager(pyqtgraph.PlotWidget):
         self.setAxisItems(axisItems = {'bottom': self.stringaxis})
         bargraph = pyqtgraph.BarGraphItem(x = list(self.x_axis_dict.keys()), height = self.y_axis, width = 1.0)
         self.addItem(bargraph)
+        if self.title:
+            self.setTitle(self.title)
+    
+    def plot_graph_multiple_y_axes(self, df: pandas.DataFrame):
+        x_axis_dictionary = dict(enumerate(df.index.values.tolist()))
+        self.stringaxis.setTicks([x_axis_dictionary.items()])
+        self.setAxisItems(axisItems = {'bottom': self.stringaxis})
+        bottom = numpy.zeros(len(df))
+        for col, color in zip(df.columns, self.colors):
+            bargraph = pyqtgraph.BarGraphItem(x = list(x_axis_dictionary.keys()), height = df[col].values.tolist(), width = 1.0)
+            self.addItem(bargraph)
+            bottom += df[col].values.tolist()
         if self.title:
             self.setTitle(self.title)
 
@@ -132,8 +150,11 @@ class TabWidget(QtWidgets.QWidget):
         # images sent
         self.images_sent_graph = GraphManager(parent=self.plots_tab, title="Images Sent Per User", xLabel="User", yLabel="Images Sent Count")
         self.plots_tab_layout.addWidget(self.images_sent_graph, 5, 0)
+        # common words
+        self.common_words_graph = GraphManager(parent=self.plots_tab, title="Commonly Sent Words", xLabel="Word", yLabel="Times Sent")
+        self.plots_tab_layout.addWidget(self.common_words_graph, 6, 0)
         self.plots_tab.setWidgetResizable(False)
-        self.plots_tab.setLayout(self.plots_tab_layout)
+        # self.plots_tab.setLayout(self.plots_tab_layout)
         self.plots_tab.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     
     def setup_settings_tab(self):
@@ -313,20 +334,49 @@ class TabWidget(QtWidgets.QWidget):
         self.plot_stats(total_stats)
     
     def plot_stats(self, stats):
+        common_words_dict = {}
         x_axis = []
-        messages_sent_y_axis, likes_received_y_axis, likes_given_y_axis, self_likes_y_axis, words_sent_y_axis, images_sent_y_axis = ([] for i in range(6))
+        words_x_axis = []
+        messages_sent_y_axis, likes_received_y_axis, likes_given_y_axis, self_likes_y_axis, words_sent_y_axis, images_sent_y_axis, common_words_y_axis = ([] for i in range(7))
+        name_order = []
         for key, value in stats.items():
+            name_val = ""
             if stats[key]["name"]:
                 x_axis.append(value["name"])
+                name_val = value["name"]
             else:
                 x_axis.append(key)
+                name_val = key
+            name_order.append(name_val)
             messages_sent_y_axis.append(value["messages_sent"])
             likes_received_y_axis.append(value["likes_received"])
             likes_given_y_axis.append(value["likes_given"])
             self_likes_y_axis.append(value["self_likes"])
             words_sent_y_axis.append(value["words_sent"])
             images_sent_y_axis.append(value["images_sent"])
+            common_words_dict.update(value["common_words"])
         
+        common_words_dict_sorted = dict(sorted(common_words_dict.items(), key=lambda item: item[1], reverse=True))
+        common_words_list = [(k,v) for k,v in common_words_dict_sorted.items()]
+
+        common_words_x_axis = []
+        for i in range(10):
+            common_words_x_axis.append(common_words_list[i][0])
+        #df = pandas.DataFrame(columns = common_words_x_axis[0:10])
+        df = pandas.DataFrame(columns = name_order)
+        common_words_data = {} #dict.fromkeys(stats.keys())
+        for word in common_words_x_axis[0:10]:
+            words_count = []
+            for key, value in stats.items():
+                if word in value["common_words"].keys():
+                    words_count.append(value["common_words"][word])
+                else:
+                    words_count.append(0)
+            df.loc[len(df.index)] = words_count
+        df.index = common_words_x_axis[0:10]
+        for name in name_order:
+            df[name] = pandas.to_numeric(df[name])
+
         self.messages_sent_graph.set_axes(x_axis, messages_sent_y_axis)
         self.likes_received_graph.set_axes(x_axis, likes_received_y_axis)
         self.likes_given_graph.set_axes(x_axis, likes_given_y_axis)
@@ -339,6 +389,7 @@ class TabWidget(QtWidgets.QWidget):
         self.self_likes_graph.plot_graph()
         self.words_sent_graph.plot_graph()
         self.images_sent_graph.plot_graph()
+        self.common_words_graph.plot_graph_multiple_y_axes(df)
 
 
 class OutputWindow(QtWidgets.QPlainTextEdit):
