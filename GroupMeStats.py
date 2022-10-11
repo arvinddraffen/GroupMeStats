@@ -11,6 +11,55 @@ import time
 
 TOKEN = ""
 
+class Member():
+    def __init__(self) -> None:
+        pass
+
+    def set_id(self, id):
+        self.id = id
+
+    def set_name(self, name):
+        self.name = name
+    
+    def set_messages_sent(self, msgs_sent):
+        self.messages_sent = msgs_sent
+    
+    def set_likes_received(self, likes_received):
+        self.likes_received = likes_received
+    
+    def set_likes_given(self, likes_given):
+        self.likes_given = likes_given
+    
+    def set_pct_msgs_liked(self, pct_msgs_liked):
+        self.pct_msgs_liked = pct_msgs_liked
+    
+    def set_self_likes(self, self_likes):
+        self.self_likes = self_likes
+    
+    def set_words_sent(self, words_sent):
+        self.words_sent = words_sent
+    
+    def set_images_sent(self, images_sent):
+        self.images_sent = images_sent
+    
+    def set_parameters(self, id, name, msgs_sent, likes_received, likes_given, pct_msgs_liked, self_likes, words_sent, images_sent):
+        self.id = id
+        self.name = name
+        self.messages_sent = msgs_sent
+        self.likes_received = likes_received
+        self.likes_given = likes_given
+        self.pct_msgs_liked = pct_msgs_liked
+        self.self_likes = self_likes
+        self.words_sent = words_sent
+        self.images_sent = images_sent
+
+class Chat():
+    def __init__(self) -> None:
+        pass
+
+    members = []
+    messages = []
+
 
 def main():
     parser = argparse.ArgumentParser(description='Select GroupMe message type(s) for program to use.')
@@ -217,11 +266,11 @@ def get_groups(users, suppress_print=False):
 
     # Former Groups
     r = requests.get("https://api.groupme.com/v3/groups/former?token=" + TOKEN + "&per_page=500")
-    data = r.json()
+    data_former = r.json()
     if not suppress_print:
         print("\nFormer Groups (you must rejoin these groups to analyze messages)")
         print('{0: <2} {1: <40} {2: <10}'.format('#', 'Group Name', 'Group Id'))
-    for element in data['response']:
+    for element in data_former['response']:
         # These groups are not added to g_ids because their messages cannot be later retrieved as former groups
         if not suppress_print:
             print('{0: <2} {1: <40} {2: <10}'.format(i, process_name(element['name']), element['group_id']))
@@ -229,7 +278,10 @@ def get_groups(users, suppress_print=False):
     if not suppress_print:
         print("\n")
     users.update(usr)
-    return data, g_ids, group_info
+    data_response = data["response"]
+    data_former_response = data_former["response"]
+    all_groups = data_response + data_former_response
+    return all_groups, g_ids, group_info
 
 
 def get_chats(users, suppress_print=False):
@@ -261,6 +313,10 @@ def get_chats(users, suppress_print=False):
         print("\n")
     users.update(c_ids)
     return data, c_ids, chat_info
+
+def get_me():
+   r = requests.get("https://api.groupme.com/v3/users/me?token=" + TOKEN)
+   return r.json()
 
 def process_name(name):
     pattern = re.compile(r'([^\s\w]|_)+', re.UNICODE)
@@ -297,7 +353,7 @@ def retrieve_group_messages(group_ids, group_info):
     return group_analysis_results
 
     
-def retrieve_chat_messages(chat_ids, chat_info):
+def retrieve_chat_messages(chat_ids, chat_info, from_gui = False):
     """
     Retrieve all messages for all chats in chat_ids, retrieves for each group sequentially.
 
