@@ -29,7 +29,7 @@ class GraphManager(pyqtgraph.PlotWidget):
     def __init__(self, title="", xLabel="", yLabel="", parent=None, background='default', plotItem=None, **kargs):
         super().__init__(parent, background, plotItem, **kargs)
         self.stringaxis = pyqtgraph.AxisItem(orientation="bottom")
-        cmap = cm.get_cmap('jet')
+        cmap = cm.get_cmap('tab10')
         self.colors = [tuple(255*x for x in cmap(i/10))[:-1] for i in range(10)]
         QtWidgets.QWidget.setMinimumSize(self, 300, 300)
         self.setBackground('w')
@@ -65,7 +65,7 @@ class GraphManager(pyqtgraph.PlotWidget):
         self.setAxisItems(axisItems = {'bottom': self.stringaxis})
         bottom = numpy.zeros(len(df))
         for col, color in zip(df.columns, self.colors):
-            bargraph = pyqtgraph.BarGraphItem(x = list(x_axis_dictionary.keys()), height = df[col].values.tolist(), width = 1.0)
+            bargraph = pyqtgraph.BarGraphItem(x = list(x_axis_dictionary.keys()), height = df[col].values.tolist(), width = 1.0, brush = pyqtgraph.mkBrush(color = color), pen = pyqtgraph.mkPen(color = color))
             self.addItem(bargraph)
             bottom += df[col].values.tolist()
         if self.title:
