@@ -1,11 +1,16 @@
 from nntplib import GroupInfo
-from tkinter import Scrollbar
-from turtle import width
+from tkinter import Canvas, Scrollbar
+from turtle import color, width
 from PyQt5 import QtCore, QtWidgets, QtGui
 import sys
 from matplotlib import cm
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+import matplotlib.pyplot as plt
 import GroupMeStats
+from itertools import cycle
 import numpy
+import random
 import pandas
 from pyqtgraph import PlotWidget, plot, AxisItem
 import pyqtgraph
@@ -58,18 +63,6 @@ class GraphManager(pyqtgraph.PlotWidget):
         self.addItem(bargraph)
         if self.title:
             self.setTitle(self.title)
-    
-    def plot_graph_multiple_y_axes(self, df: pandas.DataFrame):
-        x_axis_dictionary = dict(enumerate(df.index.values.tolist()))
-        self.stringaxis.setTicks([x_axis_dictionary.items()])
-        self.setAxisItems(axisItems = {'bottom': self.stringaxis})
-        bottom = numpy.zeros(len(df))
-        for col, color in zip(df.columns, self.colors):
-            bargraph = pyqtgraph.BarGraphItem(x = list(x_axis_dictionary.keys()), height = df[col].values.tolist(), y0 = bottom, width = 1.0, brush = pyqtgraph.mkBrush(color = color), pen = pyqtgraph.mkPen(color = color))
-            self.addItem(bargraph)
-            bottom += df[col].values.tolist()
-        if self.title:
-            self.setTitle(self.title)
 
 
 class TabWidget(QtWidgets.QWidget):
@@ -88,8 +81,8 @@ class TabWidget(QtWidgets.QWidget):
 
         self.setup_group_tab()
         self.setup_chat_tab()
-        self.setup_plots_tab()
         self.setup_settings_tab()
+        self.setup_plots_tab()
 
         self.tab_widget.addTab(self.group_tab, "Groups")
         self.tab_widget.addTab(self.chat_tab, "Chats")
@@ -125,40 +118,93 @@ class TabWidget(QtWidgets.QWidget):
         self.generate_plots_layout()
 
     def generate_plots_layout(self):
+        x = 10
+        y = 10
         self.plots_tab_layout_primary = QtWidgets.QHBoxLayout(self.plots_tab)
         self.scroll_area = QtWidgets.QScrollArea(self.plots_tab)
         self.scroll_area.setWidgetResizable(True)
-        self.scroll_area_widget_contents = QtWidgets.QWidget()
+        self.scroll_area_widget_contents = QtWidgets.QFrame()
         self.plots_tab_layout = QtWidgets.QGridLayout(self.scroll_area_widget_contents)
         self.scroll_area.setWidget(self.scroll_area_widget_contents)
         self.plots_tab_layout_primary.addWidget(self.scroll_area)
         # messages sent
-        self.messages_sent_graph = GraphManager(parent=self.plots_tab, title="Messages Sent Per User", xLabel="User", yLabel="Message Count")
-        self.plots_tab_layout.addWidget(self.messages_sent_graph, 0, 0)
-        # likes received
-        self.likes_received_graph = GraphManager(parent=self.plots_tab, title="Likes Received Per User", xLabel="User", yLabel="Likes Received Count")
-        self.plots_tab_layout.addWidget(self.likes_received_graph, 1, 0)
-        # likes given
-        self.likes_given_graph = GraphManager(parent=self.plots_tab, title="Likes Given Per User", xLabel="User", yLabel="Likes Given Count")
-        self.plots_tab_layout.addWidget(self.likes_given_graph, 2, 0)
-        # self likes
-        self.self_likes_graph = GraphManager(parent=self.plots_tab, title="Self Likes Per User", xLabel="User", yLabel="Self Likes Count")
-        self.plots_tab_layout.addWidget(self.self_likes_graph, 3, 0)
-        # words sent
-        self.words_sent_graph = GraphManager(parent=self.plots_tab, title="Words Sent Per User", xLabel="User", yLabel="Words Sent Count")
-        self.plots_tab_layout.addWidget(self.words_sent_graph, 4, 0)
-        # images sent
-        self.images_sent_graph = GraphManager(parent=self.plots_tab, title="Images Sent Per User", xLabel="User", yLabel="Images Sent Count")
-        self.plots_tab_layout.addWidget(self.images_sent_graph, 5, 0)
+        # self.messages_sent_graph = GraphManager(parent=self.plots_tab, title="Messages Sent Per User", xLabel="User", yLabel="Message Count")
+        # self.plots_tab_layout.addWidget(self.messages_sent_graph, 0, 0)
+        self.plots_tab_messages_sent_layout = QtWidgets.QVBoxLayout()
+        self.messages_sent_graph_figure = plt.figure(figsize=(x,y))
+        self.messages_sent_graph_canvas = FigureCanvas(self.messages_sent_graph_figure)
+        self.messages_sent_graph_toolbar = NavigationToolbar(self.messages_sent_graph_canvas, self.scroll_area_widget_contents)
+        self.plots_tab_messages_sent_layout.addWidget(self.messages_sent_graph_toolbar)
+        self.plots_tab_messages_sent_layout.addWidget(self.messages_sent_graph_canvas)
+        self.plots_tab_layout.addLayout(self.plots_tab_messages_sent_layout, 0, 0)
+        # # likes received
+        # self.likes_received_graph = GraphManager(parent=self.plots_tab, title="Likes Received Per User", xLabel="User", yLabel="Likes Received Count")
+        # self.plots_tab_layout.addWidget(self.likes_received_graph, 1, 0)
+        self.plots_tab_likes_received_layout = QtWidgets.QVBoxLayout()
+        self.likes_received_graph_figure = plt.figure(figsize=(x,y))
+        self.likes_received_graph_canvas = FigureCanvas(self.likes_received_graph_figure)
+        self.likes_received_graph_toolbar = NavigationToolbar(self.likes_received_graph_canvas, self.scroll_area_widget_contents)
+        self.plots_tab_likes_received_layout.addWidget(self.likes_received_graph_toolbar)
+        self.plots_tab_likes_received_layout.addWidget(self.likes_received_graph_canvas)
+        self.plots_tab_layout.addLayout(self.plots_tab_likes_received_layout, 1, 0)
+        # # likes given
+        # self.likes_given_graph = GraphManager(parent=self.plots_tab, title="Likes Given Per User", xLabel="User", yLabel="Likes Given Count")
+        # self.plots_tab_layout.addWidget(self.likes_given_graph, 2, 0)
+        self.plots_tab_likes_given_layout = QtWidgets.QVBoxLayout()
+        self.likes_given_graph_figure = plt.figure(figsize=(x,y))
+        self.likes_given_graph_canvas = FigureCanvas(self.likes_given_graph_figure)
+        self.likes_given_graph_toolbar = NavigationToolbar(self.likes_given_graph_canvas, self.scroll_area_widget_contents)
+        self.plots_tab_likes_given_layout.addWidget(self.likes_given_graph_toolbar)
+        self.plots_tab_likes_given_layout.addWidget(self.likes_given_graph_canvas)
+        self.plots_tab_layout.addLayout(self.plots_tab_likes_given_layout, 2, 0)
+        # # self likes
+        # self.self_likes_graph = GraphManager(parent=self.plots_tab, title="Self Likes Per User", xLabel="User", yLabel="Self Likes Count")
+        # self.plots_tab_layout.addWidget(self.self_likes_graph, 3, 0)
+        self.plots_tab_self_likes_layout = QtWidgets.QVBoxLayout()
+        self.self_likes_graph_figure = plt.figure(figsize=(x,y))
+        self.self_likes_graph_canvas = FigureCanvas(self.self_likes_graph_figure)
+        self.self_likes_graph_toolbar = NavigationToolbar(self.self_likes_graph_canvas, self.scroll_area_widget_contents)
+        self.plots_tab_self_likes_layout.addWidget(self.self_likes_graph_toolbar)
+        self.plots_tab_self_likes_layout.addWidget(self.self_likes_graph_canvas)
+        self.plots_tab_layout.addLayout(self.plots_tab_self_likes_layout, 3, 0)
+        # # words sent
+        # self.words_sent_graph = GraphManager(parent=self.plots_tab, title="Words Sent Per User", xLabel="User", yLabel="Words Sent Count")
+        # self.plots_tab_layout.addWidget(self.words_sent_graph, 4, 0)
+        self.plots_tab_words_sent_layout = QtWidgets.QVBoxLayout()
+        self.words_sent_graph_figure = plt.figure(figsize=(x,y))
+        self.words_sent_graph_canvas = FigureCanvas(self.words_sent_graph_figure)
+        self.words_sent_graph_toolbar = NavigationToolbar(self.words_sent_graph_canvas, self.scroll_area_widget_contents)
+        self.plots_tab_words_sent_layout.addWidget(self.words_sent_graph_toolbar)
+        self.plots_tab_words_sent_layout.addWidget(self.words_sent_graph_canvas)
+        self.plots_tab_layout.addLayout(self.plots_tab_words_sent_layout, 4, 0)
+        # # images sent
+        # self.images_sent_graph = GraphManager(parent=self.plots_tab, title="Images Sent Per User", xLabel="User", yLabel="Images Sent Count")
+        # self.plots_tab_layout.addWidget(self.images_sent_graph, 5, 0)
+        self.plots_tab_images_sent_layout = QtWidgets.QVBoxLayout()
+        self.images_sent_graph_figure = plt.figure(figsize=(x,y))
+        self.images_sent_graph_canvas = FigureCanvas(self.words_sent_graph_figure)
+        self.images_sent_graph_toolbar = NavigationToolbar(self.words_sent_graph_canvas, self.scroll_area_widget_contents)
+        self.plots_tab_images_sent_layout.addWidget(self.images_sent_graph_toolbar)
+        self.plots_tab_images_sent_layout.addWidget(self.images_sent_graph_canvas)
+        self.plots_tab_layout.addLayout(self.plots_tab_images_sent_layout, 5, 0)
         # common words
-        self.common_words_graph = GraphManager(parent=self.plots_tab, title="Commonly Sent Words", xLabel="Word", yLabel="Times Sent")
-        self.plots_tab_layout.addWidget(self.common_words_graph, 6, 0)
-        self.plots_tab.setWidgetResizable(False)
-        # self.plots_tab.setLayout(self.plots_tab_layout)
+        # self.common_words_graph = GraphManager(parent=self.plots_tab, title="Commonly Sent Words", xLabel="Word", yLabel="Times Sent")
+        # self.plots_tab_layout.addWidget(self.common_words_graph, 6, 0)
+        self.plots_tab_common_words_layout = QtWidgets.QVBoxLayout()
+        self.common_words_graph_figure = plt.figure(figsize=(x,y))
+        self.common_words_graph_canvas = FigureCanvas(self.common_words_graph_figure)
+        self.common_words_graph_toolbar = NavigationToolbar(self.common_words_graph_canvas, self.scroll_area_widget_contents)
+        self.plots_tab_common_words_layout.addWidget(self.common_words_graph_toolbar)
+        self.plots_tab_common_words_layout.addWidget(self.common_words_graph_canvas)
+        self.plots_tab_layout.addLayout(self.plots_tab_common_words_layout, 6, 0)
+        self.plots_tab.setWidgetResizable(True)
+        self.plots_tab.setLayout(self.plots_tab_layout)
         self.plots_tab.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     
     def setup_settings_tab(self):
         print("This is the settings tab")
+        self.settings_tab_layout = QtWidgets.QHBoxLayout()
+        self.settings_tab.setLayout(self.settings_tab_layout)
     
     def get_groups(self):
         if not GroupMeStats.set_token(None, from_gui=True):
@@ -377,19 +423,79 @@ class TabWidget(QtWidgets.QWidget):
         for name in name_order:
             df[name] = pandas.to_numeric(df[name])
 
-        self.messages_sent_graph.set_axes(x_axis, messages_sent_y_axis)
-        self.likes_received_graph.set_axes(x_axis, likes_received_y_axis)
-        self.likes_given_graph.set_axes(x_axis, likes_given_y_axis)
-        self.self_likes_graph.set_axes(x_axis, self_likes_y_axis)
-        self.words_sent_graph.set_axes(x_axis, words_sent_y_axis)
-        self.images_sent_graph.set_axes(x_axis, images_sent_y_axis)
-        self.messages_sent_graph.plot_graph()
-        self.likes_received_graph.plot_graph()
-        self.likes_given_graph.plot_graph()
-        self.self_likes_graph.plot_graph()
-        self.words_sent_graph.plot_graph()
-        self.images_sent_graph.plot_graph()
-        self.common_words_graph.plot_graph_multiple_y_axes(df)
+        # self.messages_sent_graph.set_axes(x_axis, messages_sent_y_axis)
+        # self.likes_received_graph.set_axes(x_axis, likes_received_y_axis)
+        # self.likes_given_graph.set_axes(x_axis, likes_given_y_axis)
+        # self.self_likes_graph.set_axes(x_axis, self_likes_y_axis)
+        # self.words_sent_graph.set_axes(x_axis, words_sent_y_axis)
+        # self.images_sent_graph.set_axes(x_axis, images_sent_y_axis)
+        # self.messages_sent_graph.plot_graph()
+        # self.likes_received_graph.plot_graph()
+        # self.likes_given_graph.plot_graph()
+        # self.self_likes_graph.plot_graph()
+        # self.words_sent_graph.plot_graph()
+        # self.images_sent_graph.plot_graph()
+
+        color_list = ['blue', 'green', 'red', 'cyan', 'magenta']
+
+        self.messages_sent_graph_figure.clear()
+        messages_sent_graph_ax = self.messages_sent_graph_figure.add_axes([0,0,1,1])
+        messages_sent_graph_ax.bar(x_axis, messages_sent_y_axis, color=color_list)
+        messages_sent_graph_ax.set_title("Messages Sent")
+        handles = [plt.Rectangle((0,0),1,1, color=color_list[i]) for i in range(len(name_order))]
+        messages_sent_graph_ax.legend(handles=handles, labels=name_order)
+        self.messages_sent_graph_canvas.draw()
+
+        self.likes_received_graph_figure.clear()
+        likes_received_graph_ax = self.likes_received_graph_figure.add_axes([0,0,1,1])
+        likes_received_graph_ax.bar(x_axis, likes_received_y_axis, color=color_list)
+        likes_received_graph_ax.set_title("Likes Received")
+        likes_received_graph_ax.legend(handles=handles, labels=name_order)
+        self.likes_received_graph_canvas.draw()
+
+        self.likes_given_graph_figure.clear()
+        likes_given_graph_ax = self.likes_given_graph_figure.add_axes([0,0,1,1])
+        likes_given_graph_ax.bar(x_axis, likes_given_y_axis, color=color_list)
+        likes_given_graph_ax.set_title("Likes Given")
+        likes_given_graph_ax.legend(handles=handles, labels=name_order)
+        self.likes_given_graph_canvas.draw()
+
+        self.self_likes_graph_figure.clear()
+        self_likes_graph_ax = self.self_likes_graph_figure.add_axes([0,0,1,1])
+        self_likes_graph_ax.bar(x_axis, self_likes_y_axis, color=color_list)
+        self_likes_graph_ax.set_title("Self-Likes")
+        self_likes_graph_ax.legend(handles=handles, labels=name_order)
+        self.self_likes_graph_canvas.draw()
+
+        self.words_sent_graph_figure.clear()
+        words_sent_graph_ax = self.words_sent_graph_figure.add_axes([0,0,1,1])
+        words_sent_graph_ax.bar(x_axis, words_sent_y_axis, color=color_list)
+        words_sent_graph_ax.set_title("Words Sent")
+        words_sent_graph_ax.legend(handles=handles, labels=name_order)
+        self.words_sent_graph_canvas.draw()
+
+        self.images_sent_graph_figure.clear()
+        images_sent_graph_ax = self.images_sent_graph_figure.add_axes([0,0,1,1])
+        images_sent_graph_ax.bar(x_axis, images_sent_y_axis, color=color_list)
+        images_sent_graph_ax.set_title("Images Sent")
+        images_sent_graph_ax.legend(handles=handles, labels=name_order)
+        self.images_sent_graph_canvas.draw()
+        
+
+        self.common_words_graph_figure.clear()
+        ax = self.common_words_graph_figure.add_axes([0,0,1,1])
+        x_axis_dictionary = dict(enumerate(df.index.values.tolist()))
+        bottom = numpy.zeros(len(df))
+        
+        cycol = cycle('bgrcm')
+        for col in df.columns:
+            ax.bar(list(x_axis_dictionary.keys()), df[col].values.tolist(), bottom=bottom, color=next(cycol))
+            bottom += df[col].values.tolist()
+
+        ax.set_title("Most Commonly Sent Words")
+        ax.legend(labels=name_order)
+        
+        self.common_words_graph_canvas.draw()
 
 
 class OutputWindow(QtWidgets.QPlainTextEdit):
